@@ -16,7 +16,9 @@ public:
 	//	フラグメントシェーダーの有無で分ける
 	void initGLSL(const char *vertexFile);
 	void initGLSL(const char *vertexFile, const char *fragmentFile);
-
+	//	有効化
+	void enable(){ glUseProgram(program); }
+	void disable(){ glUseProgram(0); }
 
 };
 
