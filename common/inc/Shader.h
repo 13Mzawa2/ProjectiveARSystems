@@ -5,7 +5,7 @@
 class Shader
 {
 private:
-	GLuint vertexShader, fragmentShader;
+	GLuint vertexShader, fragmentShader;		//	シェーダオブジェクト
 public:
 	GLuint program;			//	シェーダプログラム
 	Shader();

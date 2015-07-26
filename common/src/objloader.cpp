@@ -11,6 +11,15 @@
 // - More secure. Change another line and you can inject code.
 // - Loading from memory, stream, etc
 
+Object &Object::operator=(Object &_obj)
+{
+	std::copy(vertices.begin(), vertices.end(), std::back_inserter(_obj.vertices));
+	std::copy(uvs.begin(), uvs.end(), std::back_inserter(_obj.uvs));
+	std::copy(normals.begin(), normals.end(), std::back_inserter(_obj.normals));
+
+	return *this;
+}
+
 bool loadOBJ(const char *path, Object &obj)
 {
 	return loadOBJ(path, obj.vertices, obj.uvs, obj.normals);
