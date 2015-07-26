@@ -20,10 +20,14 @@
 #include <stdio.h>
 #include <string>
 #include <cstring>
+#include <algorithm>		//	std::copy
+#include <iterator>			//	std::back_inserter
 
 #include <glm/glm.hpp>
 
-typedef struct Object{
+class Object
+{
+public:
 	std::vector<glm::vec3> vertices;
 	std::vector<glm::vec2> uvs;
 	std::vector<glm::vec3> normals;

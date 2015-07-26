@@ -87,8 +87,8 @@
   <ItemGroup>
     <ClCompile Include="..\common\src\objloader.cpp" />
     <ClCompile Include="..\common\src\Shader.cpp" />
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="OBJRenderer.cpp" />
-    <ClCompile Include="Texture.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\common\inc\objloader.hpp" />

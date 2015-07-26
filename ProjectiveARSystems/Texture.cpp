@@ -68,9 +68,40 @@ int main(void)
 
 	//	プログラマブルシェーダをロード
 	shader.initGLSL("shader/vertex.glsl", "shader/fragment.glsl");
+	//	uniformへのハンドルを取得
+	//	初期化時だけ
+	GLuint MatrixID = glGetUniformLocation(shader.program, "MVP");		//	vertex.shader内の uniform mat4 MVP; へのID
+	GLuint NormalMatID = glGetUniformLocation(shader.program, "MV");
+	GLuint textureID = glGetUniformLocation(shader.program, "myTextureSampler");	// ひとつのOpenGLテクスチャを作ります。
+	GLuint LightDirectionID = glGetUniformLocation(shader.program, "LightDirection");
+	GLuint LightColorID = glGetUniformLocation(shader.program, "LightColor");
+
 	//	.objファイルを読み込みます。
 	Object obj;
 	bool res = loadOBJ("model/drop_modified_x004.obj", obj);
+	//	Vertex Array IDを設定
+	GLuint VertexArrayID;
+	glGenVertexArrays(1, &VertexArrayID);
+	glBindVertexArray(VertexArrayID);
+
+	//	頂点バッファをOpenGLに渡す
+	GLuint vertexbuffer;
+	glGenBuffers(1, &vertexbuffer);							//	バッファを1つ作成
+	glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);			//	以降のコマンドをvertexbufferバッファに指定
+	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * obj.vertices.size() , &obj.vertices[0], GL_STATIC_DRAW);		//	頂点をOpenGLのvertexbuferに渡す
+
+	//	UV座標バッファ
+	GLuint uvbuffer;
+	glGenBuffers(1, &uvbuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec2) * obj.uvs.size(), &obj.uvs[0], GL_STATIC_DRAW);
+
+	//	法線バッファ
+	GLuint normalbuffer;
+	glGenBuffers(1, &normalbuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, normalbuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * obj.normals.size(), &obj.normals[0], GL_STATIC_DRAW);
+
 	//	テクスチャ画像を読み込む
 	Mat texImg = imread("model/textures/txt_001_diff.bmp");
 	flip(texImg, texImg, 1);
@@ -90,37 +121,6 @@ int main(void)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	//	ミップマップを作成
 	glGenerateMipmap(GL_TEXTURE_2D);
-
-	//	Vertex Array IDを設定
-	GLuint VertexArrayID;
-	glGenVertexArrays(1, &VertexArrayID);
-	glBindVertexArray(VertexArrayID);
-
-	//	uniformへのハンドルを取得
-	//	初期化時だけ
-	GLuint MatrixID = glGetUniformLocation(shader.program, "MVP");		//	vertex.shader内の uniform mat4 MVP; へのID
-	GLuint NormalMatID = glGetUniformLocation(shader.program, "MV");
-	GLuint textureID = glGetUniformLocation(shader.program, "myTextureSampler");	// ひとつのOpenGLテクスチャを作ります。
-	GLuint LightDirectionID = glGetUniformLocation(shader.program, "LightDirection");
-	GLuint LightColorID = glGetUniformLocation(shader.program, "LightColor");
-
-	//	頂点バッファをOpenGLに渡す
-	GLuint vertexbuffer;
-	glGenBuffers(1, &vertexbuffer);							//	バッファを1つ作成
-	glBindBuffer(GL_ARRAY_BUFFER, vertexbuffer);			//	以降のコマンドをvertexbufferバッファに指定
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * obj.vertices.size() , &obj.vertices[0], GL_STATIC_DRAW);		//	頂点をOpenGLのvertexbuferに渡す
-
-	//	UV座標バッファ
-	GLuint uvbuffer;
-	glGenBuffers(1, &uvbuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, uvbuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec2) * obj.uvs.size(), &obj.uvs[0], GL_STATIC_DRAW);
-
-	//	法線バッファ
-	GLuint normalbuffer;
-	glGenBuffers(1, &normalbuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, normalbuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * obj.normals.size(), &obj.normals[0], GL_STATIC_DRAW);
 
 	//	メインループ
 	while (glfwGetKey(mainWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS		//	Escキー
