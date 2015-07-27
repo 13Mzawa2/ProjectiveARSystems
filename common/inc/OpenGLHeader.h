@@ -16,6 +16,7 @@
 #include <GLFW/glfw3.h>	
 
 #include <glm/glm.hpp>						//	Šî–{“I‚È‰‰ŽZ
-#include <glm/gtc/matrix_transform.hpp>		//	glm::perspective‚È‚Ç
-#include <glm/gtx/transform.hpp>			//	glm::translate‚È‚Ç
+#include <glm/ext.hpp>
+//#include <glm/gtc/matrix_transform.hpp>		//	glm::perspective‚È‚Ç
+//#include <glm/gtx/transform.hpp>			//	glm::translate‚È‚Ç
 using namespace glm;
