@@ -1,4 +1,25 @@
 
+#pragma region Disable Waring C4996
+//
+// Disable Warning C4996
+//
+#ifndef _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES
+#define _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES 1
+#endif
+#ifndef _CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES
+#define _CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES 1
+#endif
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS 1
+#endif
+#pragma endregion
+
+#include <stdio.h>
+#include <string>
+#include <cstring>
+#include <algorithm>		//	std::copy
+#include <iterator>			//	std::back_inserter
+
 #include "objloader.hpp"
 
 // Very, VERY simple OBJ loader.
@@ -20,10 +41,6 @@ Object &Object::operator=(Object &_obj)
 	return *this;
 }
 
-bool loadOBJ(const char *path, Object &obj)
-{
-	return loadOBJ(path, obj.vertices, obj.uvs, obj.normals);
-}
 
 bool loadOBJ(
 	const char * path, 
@@ -117,6 +134,10 @@ bool loadOBJ(
 	return true;
 }
 
+bool loadOBJ(const char *path, Object &obj)
+{
+	return loadOBJ(path, obj.vertices, obj.uvs, obj.normals);
+}
 
 #ifdef USE_ASSIMP // don't use this #define, it's only for me (it AssImp fails to compile on your machine, at least all the other tutorials still work)
 

@@ -12,7 +12,7 @@
 
 #include	<iostream>
 #include	<opencv2/opencv.hpp>
-#include	<opencv2/viz.hpp>
+//#include	<opencv2/viz.hpp>
 
 using namespace std;
 //using namespace cv;
@@ -47,7 +47,7 @@ using namespace std;
 //#pragma comment(lib, "opencv_ts"			CV_VERSION_STR CV_EXT_STR)		//	ユーザ定義可能なライブラリ（テスト作成用モジュール）
 #pragma comment(lib, "opencv_video"			CV_VERSION_STR CV_EXT_STR)		//	ビデオ解析，モーション解析
 //#pragma comment(lib, "opencv_videostab"		CV_VERSION_STR CV_EXT_STR)		//	ビデオ安定化
-#pragma comment(lib, "opencv_viz"  CV_VERSION_STR CV_EXT_STR)				//	3次元データ，PointCloud
+//#pragma comment(lib, "opencv_viz"  CV_VERSION_STR CV_EXT_STR)				//	3次元データ，PointCloud
 
 //IplImageのピクセル値拾得用マクロ 行(Y)ごとの列(X)番目の配列になっている
 #define iplB(IMG,X,Y)		((uchar*)((IMG)->imageData+(IMG)->widthStep*(Y)))[(X)*3]
