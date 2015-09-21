@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Playground", "ProjectiveARS
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "BumpMapping", "BumpMapping\BumpMapping.vcxproj", "{85CD0902-7531-4807-AE89-268F17CDFE85}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ColorVisionSimulator", "ColorVisionSimulator\ColorVisionSimulator.vcxproj", "{04349293-A785-4645-B7AB-71F049237242}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -21,6 +23,10 @@ Global
 		{85CD0902-7531-4807-AE89-268F17CDFE85}.Debug|Win32.Build.0 = Debug|Win32
 		{85CD0902-7531-4807-AE89-268F17CDFE85}.Release|Win32.ActiveCfg = Release|Win32
 		{85CD0902-7531-4807-AE89-268F17CDFE85}.Release|Win32.Build.0 = Release|Win32
+		{04349293-A785-4645-B7AB-71F049237242}.Debug|Win32.ActiveCfg = Debug|Win32
+		{04349293-A785-4645-B7AB-71F049237242}.Debug|Win32.Build.0 = Debug|Win32
+		{04349293-A785-4645-B7AB-71F049237242}.Release|Win32.ActiveCfg = Release|Win32
+		{04349293-A785-4645-B7AB-71F049237242}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
