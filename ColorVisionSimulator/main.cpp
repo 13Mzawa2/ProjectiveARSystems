@@ -13,7 +13,7 @@ const char vertexDir[] = "./shader/vertex.glsl";
 const char fragmentDir[] = "./shader/fragment.glsl";
 const char objDir[] = "../common/data/model/ARbox/ARbox.obj";
 const char textureDir[] = "../common/data/model/ARbox/textures/txt_001_diff.bmp";
-const char lutDir[] = "../common/data/lut/LUT_dichromat_typeP.bmp";
+const char lutDir[] = "../common/data/lut/LUT_dichromat_typeP.png";
 
 //	RoomAliveToolkitでの測定結果
 mat3x3 projectorCameraMatrix(
@@ -259,7 +259,7 @@ int main(void)
 		angle += 0.001f;
 		if (angle >= 360.0) angle -= 360.0;
 		Model = glm::translate(glm::vec3(0.0, 10.0, 0.0))
-			* glm::rotate(angle, glm::vec3(0.0, 1.0, 0.0))
+			* glm::rotate(angle, glm::vec3(1.0, 1.0, 0.0))
 			* glm::mat4(1.0f);
 		
 		//	Render Object
@@ -351,8 +351,11 @@ void setLUT(Renderer &r, Mat &lut)
 	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB,
 		256, 256, 256, 0, GL_BGR, GL_UNSIGNED_BYTE, lut.data);
 	//	テクスチャの拡大縮小に線形補間を使用
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP);
 }
 
 void setObjectVertices(Renderer &r)

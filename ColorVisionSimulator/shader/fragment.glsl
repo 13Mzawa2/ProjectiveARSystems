@@ -25,9 +25,10 @@ void main()
 
     // アウトプットカラー = 指定したUV座標のテクスチャの色にシェーディングを実行
     vec3 tempcolor = texture( myTextureSampler, UV ).rgb * diffuse + ambient;
-	
+	vec3 temp = clamp(tempcolor, 0.0, 0.9999);		//	上界が1.0だとLUTの色が壊れる
+
 	if(lutSwitch)
-		color = texture(lutSampler, tempcolor).rgb;
+		color = texture(lutSampler, temp).rgb;
 	else
-		color = tempcolor;
+		color = temp;
 }
