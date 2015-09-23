@@ -9,8 +9,8 @@ using namespace cv;
 
 const char vertexDir[] = "shader/Vertex.glsl";
 const char fragmentDir[] = "shader/Fragment.glsl";
-const char objDir[] = "../common/data/model/drop_modified_x004.obj";
-const char textureDir[] = "../common/data/model/textures/txt_001_diff.bmp";
+const char objDir[] = "../common/data/model/drop/drop_modified_x004.obj";
+const char textureDir[] = "../common/data/model/drop/textures/txt_001_diff.bmp";
 
 GLFWwindow	*mainWindow, *subWindow;	//	マルチウィンドウ
 OBJRenderer renderer, subRenderer;		//	objファイルのレンダリングに必要なものまとめ
@@ -60,7 +60,7 @@ int initWindow(void)
 		glfwTerminate();
 		return EXIT_FAILURE;
 	}
-	subWindow = glfwCreateWindow(1024, 768, "Sub Window", monitors[1], NULL);
+	subWindow = glfwCreateWindow(1024, 768, "Sub Window", monitors[2], NULL);
 	if (subWindow == NULL){
 		fprintf(stderr, "Failed to open GLFW window. If you have an Intel GPU, they are not 3.3 compatible. Try the 2.1 version of the tutorials.\n");
 		glfwTerminate();

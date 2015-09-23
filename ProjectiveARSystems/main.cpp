@@ -49,21 +49,14 @@ int initWindow(void)
 	// Sub Windowの用意
 	int monitorCount;
 	GLFWmonitor **monitors = glfwGetMonitors(&monitorCount);
-	subWindow = glfwCreateWindow(1024, 768, "Sub Window", monitors[1], NULL);
+	subWindow = glfwCreateWindow(1024, 768, "Sub Window", monitors[2], NULL);
 	if (subWindow == NULL){
 		fprintf(stderr, "Failed to open GLFW window. If you have an Intel GPU, they are not 3.3 compatible. Try the 2.1 version of the tutorials.\n");
 		glfwTerminate();
 		return EXIT_FAILURE;
 	}
-	glfwGetWindowSize(subWindow ,&subWinW, &subWinH);
-
-	//	キー入力を受け付けるようにする
-	glfwSetInputMode(mainWindow, GLFW_STICKY_KEYS, GL_TRUE);
-
-	//	マウス操作を可能にする
-	glfwSetMouseButtonCallback(subWindow, mouseEvent);
-	glfwSetCursorPosCallback(subWindow, cursorPosEvent);
-	glfwSetScrollCallback(subWindow, scrollEvent);
+	glfwGetWindowSize(subWindow, &subWinW, &subWinH);
+	glfwMakeContextCurrent(mainWindow);
 
 	// Initialize GLEW
 	glewExperimental = true;	// Needed for core profile
@@ -71,6 +64,8 @@ int initWindow(void)
 		fprintf(stderr, "Failed to initialize GLEW\n");
 		return EXIT_FAILURE;
 	}
+
+
 	return 0;
 }
 
@@ -89,13 +84,15 @@ void initMainWindow(void)
 	renderer.getUniformID();
 
 	//	.objファイルを読み込みます。
-	renderer.loadObject("model/drop_modified_x004.obj");
+	renderer.loadObject("../common/data/model/drop/drop_modified_x004.obj");
 	renderer.setObjData();
 
 	//	テクスチャ画像を読み込む
 	renderer.loadTexture(texImg);
 	renderer.setupTexture();
 	
+	//	キー入力を受け付けるようにする
+	glfwSetInputMode(mainWindow, GLFW_STICKY_KEYS, GL_TRUE);
 }
 
 void initSubWindow(void)
@@ -115,12 +112,17 @@ void initSubWindow(void)
 	subRenderer.getUniformID();
 
 	//	.objファイルを読み込みます。
-	subRenderer.loadObject("model/drop_modified_x004.obj");
+	subRenderer.loadObject("../common/data/model/drop/drop_modified_x004.obj");
 	subRenderer.setObjData();
 
 	//	テクスチャ画像を読み込む
 	subRenderer.loadTexture(texImg);
 	subRenderer.setupTexture();
+
+	//	マウス操作を可能にする
+	glfwSetMouseButtonCallback(subWindow, mouseEvent);
+	glfwSetCursorPosCallback(subWindow, cursorPosEvent);
+	glfwSetScrollCallback(subWindow, scrollEvent);
 }
 
 void mouseEvent(GLFWwindow *window, int button, int state, int optionkey)
@@ -180,7 +182,7 @@ int main(void)
 {
 	initWindow();
 
-	texImg = imread("model/textures/txt_001_diff.bmp");
+	texImg = imread("../common/data/model/drop/textures/txt_001_diff.bmp");
 	flip(texImg, texImg, 1);
 	initMainWindow();
 	initSubWindow();

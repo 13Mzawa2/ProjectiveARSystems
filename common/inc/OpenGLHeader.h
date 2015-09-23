@@ -11,9 +11,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <GLEW\glew.h>
+#include <GL\glew.h>
 
-#include <GLFW/glfw3.h>	
+#include <GL/glfw3.h>	
 
 #include <glm/glm.hpp>						//	Šî–{“I‚È‰‰ŽZ
 #include <glm/ext.hpp>

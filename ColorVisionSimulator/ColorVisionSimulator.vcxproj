@@ -84,13 +84,11 @@
     <ClInclude Include="..\common\inc\OpenCV3Linker.h" />
     <ClInclude Include="..\common\inc\OpenGLHeader.h" />
     <ClInclude Include="..\common\inc\Shader.h" />
-    <ClInclude Include="OBJRenderer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\common\src\objloader.cpp" />
     <ClCompile Include="..\common\src\Shader.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="OBJRenderer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shader\fragment.glsl" />

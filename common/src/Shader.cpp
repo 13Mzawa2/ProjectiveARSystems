@@ -39,7 +39,7 @@ void Shader::readShaderCompile(GLuint shader, const char *file)
 	glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
 	if (compiled == GL_FALSE){
 		printf("ƒRƒ“ƒpƒCƒ‹‚Å‚«‚Ü‚¹‚ñ‚Å‚µ‚½!!: %s \n ", file);
-		glGetProgramiv(shader, GL_INFO_LOG_LENGTH, &size);
+		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &size);
 		if (size > 0){
 			buf = (char *)malloc(size);
 			glGetShaderInfoLog(shader, size, &len, buf);
