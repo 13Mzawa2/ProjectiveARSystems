@@ -53,6 +53,7 @@ typedef struct Renderer
 	GLuint lutSamplerID;
 	GLuint lightDirectionID;		//	uniform vec3 LightDirection;
 	GLuint lightColorID;			//	uniform vec3 LightColor;
+	GLuint lutSwitchID;
 	////	object buffers
 	GLuint vertexArray;		//	頂点情報を保持する配列
 	GLuint vertexBuffer;	//	location = 0
@@ -65,6 +66,7 @@ typedef struct Renderer
 	mat4 MV;
 	vec3 lightDirection;
 	vec3 lightColor;
+	bool useLUT = false;
 };
 
 Renderer mainRenderer, subRenderer;
@@ -220,6 +222,23 @@ int main(void)
 		&& !glfwWindowShouldClose(mainWindow))							//	ウィンドウの閉じるボタン
 	{
 		//------------------------------
+		//	Key Events
+		//------------------------------
+		static bool keyHolding = false;
+		int c = glfwGetKey(subWindow, GLFW_KEY_SPACE);
+		if (keyHolding || c == GLFW_PRESS)
+		{
+			if (keyHolding && c == GLFW_RELEASE)
+			{
+				mainRenderer.useLUT = !mainRenderer.useLUT;
+				subRenderer.useLUT = !subRenderer.useLUT;
+				keyHolding = false;
+			}
+			else
+				keyHolding = true;
+		}
+
+		//------------------------------
 		//	Main Winodw
 		//------------------------------
 		glfwMakeContextCurrent(mainWindow);
@@ -239,8 +258,8 @@ int main(void)
 		static float angle = 0.0f;
 		angle += 0.001f;
 		if (angle >= 360.0) angle -= 360.0;
-		Model = glm::translate(glm::vec3(0.0, 0.0, 0.0))
-			* glm::rotate(angle, glm::vec3(0.0, 0.0, 1.0))
+		Model = glm::translate(glm::vec3(0.0, 10.0, 0.0))
+			* glm::rotate(angle, glm::vec3(0.0, 1.0, 0.0))
 			* glm::mat4(1.0f);
 		
 		//	Render Object
@@ -301,6 +320,7 @@ void getUniformID(Renderer &r)
 	r.lutSamplerID = glGetUniformLocation(r.shader.program, "lutSampler");
 	r.lightDirectionID = glGetUniformLocation(r.shader.program, "LightDirection");
 	r.lightColorID = glGetUniformLocation(r.shader.program, "LightColor");
+	r.lutSwitchID = glGetUniformLocation(r.shader.program, "lutSwitch");
 }
 
 void setObjectTexture(Renderer &r, Mat &texture)
@@ -361,11 +381,12 @@ void renderObject(Renderer &r)
 {
 	////	Execute Rendering
 	// 現在バインドしているシェーダのuniform変数に変換を送る
-	// レンダリングする各モデルごとに実行
+	// レンダリングするモデルごとに実行
 	glUniformMatrix4fv(r.mvpID, 1, GL_FALSE, &r.MVP[0][0]);
 	glUniformMatrix4fv(r.mvID, 1, GL_FALSE, &r.MV[0][0]);
 	glUniform3fv(r.lightDirectionID, 1, &r.lightDirection[0]);
 	glUniform3fv(r.lightColorID, 1, &r.lightColor[0]);
+	glUniform1i(r.lutSwitchID, r.useLUT);
 
 	//	テクスチャユニット0にtextureBufferをバインド
 	glActiveTexture(GL_TEXTURE0);

@@ -13,6 +13,7 @@ uniform sampler2D myTextureSampler;		//	テクスチャサンプラー
 uniform sampler3D lutSampler;			//	LUT取得用
 uniform vec3 LightDirection;			//	光線方向
 uniform vec3 LightColor;				//	光源色
+uniform bool lutSwitch;					//	true => LUTを適用
  
 void main()
 {
@@ -25,6 +26,8 @@ void main()
     // アウトプットカラー = 指定したUV座標のテクスチャの色にシェーディングを実行
     vec3 tempcolor = texture( myTextureSampler, UV ).rgb * diffuse + ambient;
 	
-	color = texture(lutSampler, tempcolor).rgb;
-	//color = tempcolor;
+	if(lutSwitch)
+		color = texture(lutSampler, tempcolor).rgb;
+	else
+		color = tempcolor;
 }
