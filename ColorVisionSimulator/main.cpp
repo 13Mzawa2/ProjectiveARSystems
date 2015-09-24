@@ -296,7 +296,7 @@ int main(void)
 			* glm::mat4(1.0);
 		subRenderer.MV = View * Model;
 		subRenderer.MVP = Projection * subRenderer.MV;
-		subRenderer.lightDirection = glm::vec3(0.0, 0.0, 10.0);
+		subRenderer.lightDirection = vec3(projectorPose[3])-vec3(objTx, objTy, objTz);
 		subRenderer.lightColor = glm::vec3(1.0, 1.0, 1.0);
 		
 		renderObject(subRenderer);
