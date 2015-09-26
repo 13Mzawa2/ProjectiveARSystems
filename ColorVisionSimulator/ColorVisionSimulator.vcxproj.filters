@@ -39,6 +39,12 @@
     <ClInclude Include="..\common\inc\OpenCV3Linker.h">
       <Filter>Common\Includes</Filter>
     </ClInclude>
+    <ClInclude Include="ARTKLinker.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="Kinect2WithOpenCVWrapper.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
