@@ -1,4 +1,4 @@
-
+ï»¿
 #include <iostream>
 #include "Shader.h"
 #include "objloader.hpp"
@@ -29,8 +29,8 @@ const char *lutDir[5] = {
 //-----------------------------------------------------
 //	Constants
 //-----------------------------------------------------
-//	RoomAliveToolkit‚Å‚Ì‘ª’èŒ‹‰Ê
-//	Kinect‚ÌRGBƒJƒƒ‰ƒpƒ‰ƒ[ƒ^
+//	RoomAliveToolkitã§ã®æ¸¬å®šçµæœ
+//	Kinectã®RGBã‚«ãƒ¡ãƒ©ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿
 glm::mat3 colorCameraMatrix(
 	1088.5942262014253, 0, 0,
 	0, 1088.4801711642506, 0,
@@ -70,12 +70,17 @@ Mat colorImg;
 //-----------------------------------------------------
 #define PROJ_WIN_ID 2
 
-GLFWwindow	*mainWindow, *subWindow;		//	ƒ}ƒ‹ƒ`ƒEƒBƒ“ƒhƒE
+GLFWwindow	*mainWindow, *subWindow;		//	ãƒãƒ«ãƒã‚¦ã‚£ãƒ³ãƒ‰ã‚¦
 int subWinW, subWinH;
 //static float objTx = 85.9375, objTy = 588.54609, objTz = -40.4250069;
 static float objTx = 0, objTy = 0, objTz = 0;
 //static glm::quat current = glm::quat(-0.3691, 0.00095, 0.00852, -0.9293);
-static glm::quat current = glm::quat(0.0, 0.0, 0.0, 1.0);
+static glm::quat current = glm::quat(1.0, 0.0, 0.0, 0.0);
+//	å±¥æ­´ãƒ‡ãƒ¼ã‚¿ 0ãŒæœ€ã‚‚æ–°ã—ã„ éå»2ãƒ•ãƒ¬ãƒ¼ãƒ ã‚’ä½¿ç”¨
+std::vector<glm::mat4> prePose = { glm::mat4(1.0), glm::mat4(1.0), glm::mat4(1.0) };
+static float weightV = 0.9, weightA = 0.3;			//	mean = mix(p0, mix(p1, p2, weightA), weightV) 
+static double threshR = 1.0e-6, threshT = 0.8;		//	ç‰©ä½“ãŒæ­¢ã¾ã£ã¦ã„ã‚‹ã¨èªè­˜ã™ã‚‹é–¾å€¤
+
 double xBegin, yBegin;
 int pressedMouseButton = 0;
 
@@ -102,11 +107,11 @@ typedef struct Renderer
 	GLuint lightColorID;			//	uniform vec3 LightColor;
 	GLuint lutSwitchID;
 	////	object buffers
-	GLuint vertexArray;		//	’¸“_î•ñ‚ğ•Û‚·‚é”z—ñ
+	GLuint vertexArray;		//	é ‚ç‚¹æƒ…å ±ã‚’ä¿æŒã™ã‚‹é…åˆ—
 	GLuint vertexBuffer;	//	location = 0
 	GLuint uvBuffer;		//	location = 1
 	GLuint normalBuffer;	//	location = 2
-	GLuint textureObject;	//	ƒeƒNƒXƒ`ƒƒ‚ÉƒAƒNƒZƒX‚·‚é‚½‚ß‚ÌƒIƒuƒWƒFƒNƒg
+	GLuint textureObject;	//	ãƒ†ã‚¯ã‚¹ãƒãƒ£ã«ã‚¢ã‚¯ã‚»ã‚¹ã™ã‚‹ãŸã‚ã®ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆ
 	GLuint lutBuffer;		//	LookUpTable
 	////	uniform variables
 	glm::mat4 MVP;
@@ -143,33 +148,33 @@ void arglCameraFrustumRH(ARParam *cparam, const double focalmin, const double fo
 
 int initWindow(void)
 {
-	//	GLFW‚Ì‰Šú‰»
+	//	GLFWã®åˆæœŸåŒ–
 	if (glfwInit() != GL_TRUE)
 	{
-		cerr << "GLFW‚Ì‰Šú‰»‚É¸”s‚µ‚Ü‚µ‚½D\n";
+		cerr << "GLFWã®åˆæœŸåŒ–ã«å¤±æ•—ã—ã¾ã—ãŸï¼\n";
 		return EXIT_FAILURE;
 	}
-	//	Windowİ’è
-	glfwWindowHint(GLFW_SAMPLES, 4);								//	4x ƒAƒ“ƒ`ƒGƒCƒŠƒAƒX
-	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);						//	ƒŠƒTƒCƒY•s‰Â
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);					//	OpenGLƒo[ƒWƒ‡ƒ“3.3‚ğ—˜—p
+	//	Windowè¨­å®š
+	glfwWindowHint(GLFW_SAMPLES, 4);								//	4x ã‚¢ãƒ³ãƒã‚¨ã‚¤ãƒªã‚¢ã‚¹
+	glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);						//	ãƒªã‚µã‚¤ã‚ºä¸å¯
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);					//	OpenGLãƒãƒ¼ã‚¸ãƒ§ãƒ³3.3ã‚’åˆ©ç”¨
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);					//	
-	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);	//	ŒÃ‚¢OpenGL‚ğg‚í‚È‚¢
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);	//	å¤ã„OpenGLã‚’ä½¿ã‚ãªã„
 
-	// Main Window‚Ì—pˆÓ
+	// Main Windowã®ç”¨æ„
 	mainWindow = glfwCreateWindow(1920/2, 1080/2, "Main Window", NULL, NULL);
 	if (mainWindow == NULL){
-		cerr << "GLFWƒEƒBƒ“ƒhƒE‚Ì¶¬‚É¸”s‚µ‚Ü‚µ‚½. Intel GPU‚ğg—p‚µ‚Ä‚¢‚éê‡‚Í, OpenGL 3.3‚Æ‘Š«‚ª—Ç‚­‚È‚¢‚½‚ßC2.1‚ğ‚µ‚Ä‚­‚¾‚³‚¢D\n";
+		cerr << "GLFWã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã®ç”Ÿæˆã«å¤±æ•—ã—ã¾ã—ãŸ. Intel GPUã‚’ä½¿ç”¨ã—ã¦ã„ã‚‹å ´åˆã¯, OpenGL 3.3ã¨ç›¸æ€§ãŒè‰¯ããªã„ãŸã‚ï¼Œ2.1ã‚’è©¦ã—ã¦ãã ã•ã„ï¼\n";
 		glfwTerminate();
 		return EXIT_FAILURE;
 	}
 
-	// Sub Window‚Ì—pˆÓ
+	// Sub Windowã®ç”¨æ„
 	int monitorCount;
 	GLFWmonitor **monitors = glfwGetMonitors(&monitorCount);
 	subWindow = glfwCreateWindow(1024, 768, "Sub Window", monitors[PROJ_WIN_ID], NULL);
 	if (subWindow == NULL){
-		cerr << "GLFWƒEƒBƒ“ƒhƒE‚Ì¶¬‚É¸”s‚µ‚Ü‚µ‚½. Intel GPU‚ğg—p‚µ‚Ä‚¢‚éê‡‚Í, OpenGL 3.3‚Æ‘Š«‚ª—Ç‚­‚È‚¢‚½‚ßC2.1‚ğ‚µ‚Ä‚­‚¾‚³‚¢D\n";
+		cerr << "GLFWã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã®ç”Ÿæˆã«å¤±æ•—ã—ã¾ã—ãŸ. Intel GPUã‚’ä½¿ç”¨ã—ã¦ã„ã‚‹å ´åˆã¯, OpenGL 3.3ã¨ç›¸æ€§ãŒè‰¯ããªã„ãŸã‚ï¼Œ2.1ã‚’è©¦ã—ã¦ãã ã•ã„ï¼\n";
 		glfwTerminate();
 		return EXIT_FAILURE;
 	}
@@ -179,7 +184,7 @@ int initWindow(void)
 	// Initialize GLEW
 	glewExperimental = true;	// Needed for core profile
 	if (glewInit() != GLEW_OK) {
-		fprintf(stderr, "GLEW‚Ì‰Šú‰»‚É¸”s‚µ‚Ü‚µ‚½D\n");
+		fprintf(stderr, "GLEWã®åˆæœŸåŒ–ã«å¤±æ•—ã—ã¾ã—ãŸï¼\n");
 		return EXIT_FAILURE;
 	}
 	return 0;
@@ -188,59 +193,59 @@ int initWindow(void)
 void initMainWindow(void)
 {
 	//	Main Window Setting
-	glfwMakeContextCurrent(mainWindow);				//	main window‚ğƒJƒŒƒ“ƒg‚É‚·‚é
+	glfwMakeContextCurrent(mainWindow);				//	main windowã‚’ã‚«ãƒ¬ãƒ³ãƒˆã«ã™ã‚‹
 
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
-	glEnable(GL_LESS);				//	ƒJƒƒ‰‚É‹ß‚¢–Ê‚¾‚¯ƒŒƒ“ƒ_ƒŠƒ“ƒO‚·‚é
+	glEnable(GL_LESS);				//	ã‚«ãƒ¡ãƒ©ã«è¿‘ã„é¢ã ã‘ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°ã™ã‚‹
 
-	//	ƒvƒƒOƒ‰ƒ}ƒuƒ‹ƒVƒF[ƒ_‚ğƒ[ƒh
+	//	ãƒ—ãƒ­ã‚°ãƒ©ãƒãƒ–ãƒ«ã‚·ã‚§ãƒ¼ãƒ€ã‚’ãƒ­ãƒ¼ãƒ‰
 	mainRenderer.shader.initGLSL(vertexDir, fragmentDir);
-	//	Uniform•Ï”‚Ö‚Ìƒnƒ“ƒhƒ‹‚ğæ“¾
+	//	Uniformå¤‰æ•°ã¸ã®ãƒãƒ³ãƒ‰ãƒ«ã‚’å–å¾—
 	getUniformID(mainRenderer);
 
-	//	.objƒtƒ@ƒCƒ‹‚ğ“Ç‚İ‚İ
+	//	.objãƒ•ã‚¡ã‚¤ãƒ«ã‚’èª­ã¿è¾¼ã¿
 	loadOBJ(objDir, mainRenderer.obj);
-	////	OBJƒtƒ@ƒCƒ‹‚Ì’†g‚ğƒoƒbƒtƒ@‚É“]‘—
+	////	OBJãƒ•ã‚¡ã‚¤ãƒ«ã®ä¸­èº«ã‚’ãƒãƒƒãƒ•ã‚¡ã«è»¢é€
 	setObjectVertices(mainRenderer);
 
-	//	ƒeƒNƒXƒ`ƒƒ‰æ‘œ‚ğ“Ç‚İ‚Ş
+	//	ãƒ†ã‚¯ã‚¹ãƒãƒ£ç”»åƒã‚’èª­ã¿è¾¼ã‚€
 	setObjectTexture(mainRenderer, texImg);
 
-	//	LUT‚ğ“Ç‚İ‚Ş
+	//	LUTã‚’èª­ã¿è¾¼ã‚€
 	setLUT(mainRenderer, lutMat);
 }
 
 void initSubWindow(void)
 {
 	//	Sub Window Setting
-	glfwMakeContextCurrent(subWindow);				//	sub window‚ğƒJƒŒƒ“ƒg‚É‚·‚é
+	glfwMakeContextCurrent(subWindow);				//	sub windowã‚’ã‚«ãƒ¬ãƒ³ãƒˆã«ã™ã‚‹
 
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
-	glEnable(GL_LESS);				//	ƒJƒƒ‰‚É‹ß‚¢–Ê‚¾‚¯ƒŒƒ“ƒ_ƒŠƒ“ƒO‚·‚é
+	glEnable(GL_LESS);				//	ã‚«ãƒ¡ãƒ©ã«è¿‘ã„é¢ã ã‘ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°ã™ã‚‹
 
-	//	ƒvƒƒOƒ‰ƒ}ƒuƒ‹ƒVƒF[ƒ_‚ğƒ[ƒh
+	//	ãƒ—ãƒ­ã‚°ãƒ©ãƒãƒ–ãƒ«ã‚·ã‚§ãƒ¼ãƒ€ã‚’ãƒ­ãƒ¼ãƒ‰
 	subRenderer.shader.initGLSL(vertexDir, fragmentDir);
-	//	Uniform•Ï”‚Ö‚Ìƒnƒ“ƒhƒ‹‚ğæ“¾
+	//	Uniformå¤‰æ•°ã¸ã®ãƒãƒ³ãƒ‰ãƒ«ã‚’å–å¾—
 	getUniformID(subRenderer);
 
-	//	.objƒtƒ@ƒCƒ‹‚ğ“Ç‚İ‚İ
+	//	.objãƒ•ã‚¡ã‚¤ãƒ«ã‚’èª­ã¿è¾¼ã¿
 	loadOBJ(objDir, subRenderer.obj);
-	////	OBJƒtƒ@ƒCƒ‹‚Ì’†g‚ğƒoƒbƒtƒ@‚É“]‘—
+	////	OBJãƒ•ã‚¡ã‚¤ãƒ«ã®ä¸­èº«ã‚’ãƒãƒƒãƒ•ã‚¡ã«è»¢é€
 	setObjectVertices(subRenderer);
 
-	//	ƒeƒNƒXƒ`ƒƒ‰æ‘œ‚ğ“Ç‚İ‚Ş
+	//	ãƒ†ã‚¯ã‚¹ãƒãƒ£ç”»åƒã‚’èª­ã¿è¾¼ã‚€
 	setObjectTexture(subRenderer, texImg);
 
-	//	LUT‚ğ“Ç‚İ‚Ş
+	//	LUTã‚’èª­ã¿è¾¼ã‚€
 	setLUT(subRenderer, lutMat);
 
-	//	ƒL[“ü—Í‚ğó‚¯•t‚¯‚é‚æ‚¤‚É‚·‚é
+	//	ã‚­ãƒ¼å…¥åŠ›ã‚’å—ã‘ä»˜ã‘ã‚‹ã‚ˆã†ã«ã™ã‚‹
 	glfwSetInputMode(subWindow, GLFW_STICKY_KEYS, GL_TRUE);
-	//	ƒ}ƒEƒX‘€ì‚ğ‰Â”\‚É‚·‚é
+	//	ãƒã‚¦ã‚¹æ“ä½œã‚’å¯èƒ½ã«ã™ã‚‹
 	glfwSetMouseButtonCallback(subWindow, mouseEvent);
 	glfwSetCursorPosCallback(subWindow, cursorPosEvent);
 	glfwSetScrollCallback(subWindow, scrollEvent);
@@ -249,15 +254,15 @@ void initSubWindow(void)
 void initARTK(void)
 {
 
-	//	ƒpƒ^[ƒ“ƒtƒ@ƒCƒ‹‚Ìƒ[ƒh
+	//	ãƒ‘ã‚¿ãƒ¼ãƒ³ãƒ•ã‚¡ã‚¤ãƒ«ã®ãƒ­ãƒ¼ãƒ‰
 	if ((marker.patt_id = arLoadPatt(marker.patt_name)) < 0)
 	{
-		cout << "ƒpƒ^[ƒ“ƒtƒ@ƒCƒ‹‚ª“Ç‚İ‚ß‚Ü‚¹‚ñ‚Å‚µ‚½DƒfƒBƒŒƒNƒgƒŠ‚ğŠm”F‚µ‚Ä‚­‚¾‚³‚¢D\n"
-			<< "êŠF" << marker.patt_name << endl;
+		cout << "ãƒ‘ã‚¿ãƒ¼ãƒ³ãƒ•ã‚¡ã‚¤ãƒ«ãŒèª­ã¿è¾¼ã‚ã¾ã›ã‚“ã§ã—ãŸï¼ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã‚’ç¢ºèªã—ã¦ãã ã•ã„ï¼\n"
+			<< "å ´æ‰€ï¼š" << marker.patt_name << endl;
 		safeTerminate();
 		exit(-1);
 	}
-	//	ƒJƒƒ‰ƒpƒ‰ƒ[ƒ^‚Ìƒ[ƒh
+	//	ã‚«ãƒ¡ãƒ©ãƒ‘ãƒ©ãƒ¡ãƒ¼ã‚¿ã®ãƒ­ãƒ¼ãƒ‰
 	ARParam wparam;
 	arParamLoad("data/kinect_param.dat", 1, &wparam);
 	arParamChangeSize(&wparam, colorImg.cols, colorImg.rows, &cparam);
@@ -288,7 +293,7 @@ void initARTK(void)
 
 int main(void)
 {
-	//	ƒJƒƒ‰‚Ì€”õ
+	//	ã‚«ãƒ¡ãƒ©ã®æº–å‚™
 	kinect.enableColorFrame();
 	namedWindow("camera");
 	while (1)
@@ -305,16 +310,16 @@ int main(void)
 	texImg = imread(textureDir);
 	if (texImg.empty())
 	{
-		cerr << "ƒeƒNƒXƒ`ƒƒ‚Ì“Ç‚İ‚İ‚É¸”s‚µ‚Ü‚µ‚½DƒfƒBƒŒƒNƒgƒŠ‚ğŠm”F‚µ‚Ä‚­‚¾‚³‚¢D\n"
-			<< "ƒfƒBƒŒƒNƒgƒŠ‚ÌêŠF" << textureDir << endl;
+		cerr << "ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®èª­ã¿è¾¼ã¿ã«å¤±æ•—ã—ã¾ã—ãŸï¼ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã‚’ç¢ºèªã—ã¦ãã ã•ã„ï¼\n"
+			<< "ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã®å ´æ‰€ï¼š" << textureDir << endl;
 		glfwTerminate();
 		return EXIT_FAILURE;
 	}
 	lutMat = imread(lutDir[0]);
 	if (lutMat.empty())
 	{
-		cerr << "LUT‚Ì“Ç‚İ‚İ‚É¸”s‚µ‚Ü‚µ‚½DƒfƒBƒŒƒNƒgƒŠ‚ğŠm”F‚µ‚Ä‚­‚¾‚³‚¢D\n"
-			<< "ƒfƒBƒŒƒNƒgƒŠ‚ÌêŠF" << lutDir << endl;
+		cerr << "LUTã®èª­ã¿è¾¼ã¿ã«å¤±æ•—ã—ã¾ã—ãŸï¼ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã‚’ç¢ºèªã—ã¦ãã ã•ã„ï¼\n"
+			<< "ãƒ‡ã‚£ãƒ¬ã‚¯ãƒˆãƒªã®å ´æ‰€ï¼š" << lutDir << endl;
 		glfwTerminate();
 		return EXIT_FAILURE;
 	}
@@ -325,10 +330,10 @@ int main(void)
 
 	initARTK();
 
-	//	ƒƒCƒ“ƒ‹[ƒv
-	while (glfwGetKey(mainWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS		//	EscƒL[
+	//	ãƒ¡ã‚¤ãƒ³ãƒ«ãƒ¼ãƒ—
+	while (glfwGetKey(mainWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS		//	Escã‚­ãƒ¼
 		&& glfwGetKey(subWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS
-		&& !glfwWindowShouldClose(mainWindow))							//	ƒEƒBƒ“ƒhƒE‚Ì•Â‚¶‚éƒ{ƒ^ƒ“
+		&& !glfwWindowShouldClose(mainWindow))							//	ã‚¦ã‚£ãƒ³ãƒ‰ã‚¦ã®é–‰ã˜ã‚‹ãƒœã‚¿ãƒ³
 	{
 		//------------------------------
 		//	Key Events
@@ -388,16 +393,16 @@ int main(void)
 		}
 
 		//------------------------------
-		//	Get AR Marker
+		//	Get AR Marker Transform
 		//------------------------------
-		//	ƒJƒƒ‰‰æ‘œæ“¾
+		//	ã‚«ãƒ¡ãƒ©ç”»åƒå–å¾—
 		kinect.getColorFrame(colorImg);
 		safeRelease(kinect.colorFrame);
-		//	ARToolKit‚É2’l‰»‰æ‘œ‚ğ“]‘—
+		//	ARToolKitã«2å€¤åŒ–ç”»åƒã‚’è»¢é€
 		Mat threshImg, cameraBGRA, temp;
 		cv::cvtColor(colorImg, threshImg, CV_BGR2GRAY);
 		cv::adaptiveThreshold(threshImg, threshImg, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 55, 10);
-		cv::GaussianBlur(threshImg, threshImg, cv::Size(9, 9), 2.0);
+		cv::GaussianBlur(threshImg, threshImg, cv::Size(9, 9), 3.0);
 		cv::cvtColor(threshImg, cameraBGRA, CV_GRAY2BGRA);
 		ARUint8 *imgData = (ARUint8*)cameraBGRA.data;
 		temp = Mat(cameraBGRA.size(), CV_8UC4);
@@ -405,7 +410,7 @@ int main(void)
 		cv::resize(temp, temp, colorImg.size()/2);
 		cv::imshow("camera", temp);
 		
-		//	ARƒ}[ƒJ[‚ğ”F¯
+		//	ARãƒãƒ¼ã‚«ãƒ¼ã‚’èªè­˜
 		ARMarkerInfo *markerInfo;
 		int markerNum, thresh = 128;
 		if (arDetectMarker(imgData, thresh, &markerInfo, &markerNum) < 0)
@@ -418,24 +423,68 @@ int main(void)
 		for (int j = 0; j < markerNum; j++)
 		{
 			if (marker.patt_id == markerInfo[j].id)
-			{	//	marker‚ÆÅ‚àˆê’v“x‚Ì‚‚¢ID‚ğ’Šo
+			{	//	markerã¨æœ€ã‚‚ä¸€è‡´åº¦ã®é«˜ã„IDã‚’æŠ½å‡º
 				if (k == -1) k = j;
 				else if (markerInfo[k].cf < markerInfo[j].cf) k = j;
 			}
 		}
-		//	ƒ}[ƒJ[ˆÊ’up¨‚ğæ“¾
-		glm::mat4 markerTransMat(1.0f);		//	Å‰‚Í’PˆÊs—ñ
+		//	ãƒãƒ¼ã‚«ãƒ¼ä½ç½®å§¿å‹¢ã‚’å–å¾—
+		glm::mat4 markerTransMat;		//	æœ€åˆã¯å˜ä½è¡Œåˆ—
 		if (k == -1) marker.visible = 0;
 		else
-		{	//	‰ß‹î•ñ‚ğ—˜—p‚µ‚ÄƒuƒŒ‚ğ—}‚¦‚é
+		{	//	éå»æƒ…å ±ã‚’åˆ©ç”¨ã—ã¦ãƒ–ãƒ¬ã‚’æŠ‘ãˆã‚‹
 			if (marker.visible == 0)
 				arGetTransMat(&markerInfo[k], marker.patt_center, marker.patt_width, marker.patt_trans);
 			else
 				arGetTransMatCont(&markerInfo[k], marker.patt_trans, marker.patt_center, marker.patt_width, marker.patt_trans);
 			marker.visible = 1;
-			for (int i = 0; i < 3; i++)
-				for (int j = 0; j < 4; j++)
+			for (int i = 0; i < 3; i++){
+				for (int j = 0; j < 4; j++){
 					markerTransMat[j][i] = marker.patt_trans[i][j];
+				}
+			}
+			//for (int i = 0; i < 4; i++){
+			//	for (int j = 0; j < 4; j++)
+			//		cout << markerTransMat[i][j] << ", ";
+			//	cout << ";\n";
+			//}
+			////	ãƒãƒ¼ã‚«ãƒ¼ä½ç½®å§¿å‹¢ã®åŠ é‡å¹³å‡ã‚’ã¨ã‚‹
+			prePose.insert(prePose.begin(), markerTransMat);	//	prePose[0]ã«æŒ¿å…¥
+			prePose.pop_back();		//	-3ãƒ•ãƒ¬ãƒ¼ãƒ ç›®ã‚’å‰Šé™¤
+			//	å›è»¢(expãƒãƒƒãƒ—ä¸Šã§åŠ é‡å¹³å‡)
+			//	ã‚¯ã‚©ãƒ¼ã‚¿ãƒ‹ã‚ªãƒ³ã®ç”Ÿæˆ
+			glm::quat q[3] = {
+				glm::toQuat(prePose[0]),
+				glm::toQuat(prePose[1]),
+				glm::toQuat(prePose[2])
+			};
+			//	çƒé¢ç·šå½¢è£œé–“
+			glm::quat q_mean = glm::slerp(q[0], glm::slerp(q[1], q[2], 0.9f), 0.9f);		//	x(1-a)+ya
+			//	ã‚¯ã‚©ãƒ¼ã‚¿ãƒ‹ã‚ªãƒ³ã‚’å›è»¢è¡Œåˆ—ã«å¤‰æ›
+			glm::mat4 r = glm::mat4_cast(q_mean);
+			//	é–¾å€¤å‡¦ç†
+			static glm::quat q_mean_temp = q_mean;
+			//cout << abs(glm::dot(q_mean, q[1]) - glm::length(q_mean)) << endl;
+			if (abs(glm::dot(q_mean, q[1]) - glm::length(q_mean)) < threshR)
+				r = glm::mat4_cast(q_mean_temp);
+			else
+				q_mean_temp = q[0];
+			//	å¹³è¡Œç§»å‹•ãƒ™ã‚¯ãƒˆãƒ«ã¯å˜ç´”ã«åŠ é‡å¹³å‡
+			glm::vec4 t = glm::mix((prePose[0])[3], glm::mix((prePose[1])[3], (prePose[2])[3], weightA), weightV);
+			//	é–¾å€¤å‡¦ç†
+			static glm::vec4 t_temp = t;
+			//cout << glm::distance(t, prePose[1][3]) << endl;
+			if (glm::distance(t, prePose[1][3]) < threshT)
+				t = t_temp;
+			else
+				t_temp = prePose[0][3];
+			//	ä¸¦é€²ãƒ»å›è»¢ã®åˆæˆ
+			markerTransMat = glm::translate(glm::vec3(t)) * r;
+			//for (int i = 0; i < 4; i++){
+			//	for (int j = 0; j < 4; j++)
+			//		cout << markerTransMat[i][j] << ", ";
+			//	cout << ";\n";
+			//}
 		}
 		
 		//------------------------------
@@ -444,7 +493,7 @@ int main(void)
 		glfwMakeContextCurrent(mainWindow);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		// Ë‰es—ñF45‹‚Ì‹ŠEAƒAƒXƒyƒNƒg”ä4:3A•\¦”ÍˆÍF0.1’PˆÊ  100’PˆÊ
+		// å°„å½±è¡Œåˆ—ï¼š45Â°ã®è¦–ç•Œã€ã‚¢ã‚¹ãƒšã‚¯ãƒˆæ¯”4:3ã€è¡¨ç¤ºç¯„å›²ï¼š0.1å˜ä½  100å˜ä½
 		//glm::mat4 Projection = glm::perspective(45.0f, 1920.0f / 1080.0f, 0.1f, 10000.0f);
 		//glm::mat4 pj = projectionMatfromCameraMatrix(colorCameraMatrix, subWinW, subWinH, 0.001, 10000.0);
 		//for (int i = 0; i < 4; i++){
@@ -464,20 +513,20 @@ int main(void)
 			//cout << ";\n";
 		}
 		glm::mat4 Projection = glmProjMat;
-		// ƒJƒƒ‰s—ñ
+		// ã‚«ãƒ¡ãƒ©è¡Œåˆ—
 		glm::mat4 View = glm::mat4(1.0)
 			* glm::lookAt(
-			glm::vec3(0, 0, 0), // ƒJƒƒ‰‚ÌŒ´“_
-			glm::vec3(0, 0, 1), // Œ©‚Ä‚¢‚é“_
-			glm::vec3(0, -1, 0)  // ƒJƒƒ‰‚Ìã•ûŒü
+			glm::vec3(0, 0, 0), // ã‚«ãƒ¡ãƒ©ã®åŸç‚¹
+			glm::vec3(0, 0, 1), // è¦‹ã¦ã„ã‚‹ç‚¹
+			glm::vec3(0, -1, 0)  // ã‚«ãƒ¡ãƒ©ã®ä¸Šæ–¹å‘
 			);
-		// ƒ‚ƒfƒ‹s—ñF’PˆÊs—ñ(ƒ‚ƒfƒ‹‚ÍŒ´“_‚É‚ ‚è‚Ü‚·B)
+		// ãƒ¢ãƒ‡ãƒ«è¡Œåˆ—ï¼šå˜ä½è¡Œåˆ—(ãƒ¢ãƒ‡ãƒ«ã¯åŸç‚¹ã«ã‚ã‚Šã¾ã™ã€‚)
 		glm::mat4 marker2model = glm::mat4(1.0)
 			* glm::scale(glm::vec3(1.0, 1.0, 1.0))
 			* glm::translate(-glm::vec3(MARKER_SIZE/2 + 11.0f, -171.6f + MARKER_SIZE/2 + 11.0f, 0));
 			//* glm::rotate(glm::radians(180.0f), glm::vec3(0.0, 0.0, 1.0))
 			//* glm::translate(glm::vec3(MARKER_SIZE / 2 + 11.0f + 150.0f, MARKER_SIZE / 2 + 11.0f, 105.6f));
-		glm::mat4 Model;  // Šeƒ‚ƒfƒ‹‚ğ•Ï‚¦‚éI
+		glm::mat4 Model;  // å„ãƒ¢ãƒ‡ãƒ«ã‚’å¤‰ãˆã‚‹ï¼
 		Model = glm::mat4(1.0f)
 			* markerTransMat
 			* marker2model;
@@ -495,7 +544,7 @@ int main(void)
 		//	Execute Rendering
 		renderObject(mainRenderer);
 
-		//	•`‰æŒ‹‰Ê‚ğ”½‰f
+		//	æç”»çµæœã‚’åæ˜ 
 		glfwSwapBuffers(mainWindow);
 
 		//--------------------------------
@@ -544,22 +593,20 @@ int main(void)
 		}
 		Projection = glmProjMat;
 		//Projection = projectionMatfromCameraMatrix(projectorCameraMatrix, subWinW, subWinH, 0.1, 10000.0);
-		//	ƒJƒƒ‰‚ğŒ´“_‚Æ‚µ‚½ƒvƒƒWƒFƒNƒ^ˆÊ’up¨
+		//	ã‚«ãƒ¡ãƒ©ã‚’åŸç‚¹ã¨ã—ãŸãƒ—ãƒ­ã‚¸ã‚§ã‚¯ã‚¿ä½ç½®å§¿å‹¢
 		View = glm::mat4(1.0)
 			* glm::lookAt(
-			glm::vec3(0, 0, 0), // ƒJƒƒ‰‚ÌŒ´“_
-			glm::vec3(0, 0, 1), // Œ©‚Ä‚¢‚é“_
-			glm::vec3(0, -1, 0)  // ƒJƒƒ‰‚Ìã•ûŒü
+			glm::vec3(0, 0, 0), // ã‚«ãƒ¡ãƒ©ã®åŸç‚¹
+			glm::vec3(0, 0, 1), // è¦‹ã¦ã„ã‚‹ç‚¹
+			glm::vec3(0, -1, 0)  // ã‚«ãƒ¡ãƒ©ã®ä¸Šæ–¹å‘
 			)
 			* glm::inverse(projectorPose)
-			//* glm::translate(glm::vec3(objTx, objTy, objTz))
-			//* glm::mat4_cast(current)
-			* glm::translate(glm::vec3(116.699, 549.479, -105.775))
+			* glm::translate(glm::vec3(116.699 + objTx, 549.479 + objTy, -105.775 + objTz))
 			* glm::mat4_cast(glm::quat(-0.940652, -0.338357, 0.0235807, 0.0112587))
 			;
 			//* projectorPose;
 
-		//	ƒJƒƒ‰‚ğŒ´“_‚Æ‚µ‚½ƒ[ƒ‹ƒhÀ•WŒn
+		//	ã‚«ãƒ¡ãƒ©ã‚’åŸç‚¹ã¨ã—ãŸãƒ¯ãƒ¼ãƒ«ãƒ‰åº§æ¨™ç³»
 		Model = glm::mat4(1.0)
 			* markerTransMat
 			* marker2model;
@@ -595,32 +642,32 @@ void getUniformID(Renderer &r)
 
 void setObjectTexture(Renderer &r, Mat &texture)
 {
-	//	ƒeƒNƒXƒ`ƒƒ‰æ‘œ‚ğ“Ç‚İ‚Ş
+	//	ãƒ†ã‚¯ã‚¹ãƒãƒ£ç”»åƒã‚’èª­ã¿è¾¼ã‚€
 	glGenTextures(1, &r.textureObject);
 	glBindTexture(GL_TEXTURE_2D, r.textureObject);
-	//	OpenGL‚É‰æ‘œ‚ğ“n‚·
+	//	OpenGLã«ç”»åƒã‚’æ¸¡ã™
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB,
 		texture.cols, texture.rows, 0, GL_BGR, GL_UNSIGNED_BYTE, texture.data);
-	//	ƒeƒNƒXƒ`ƒƒ‚ÌŒJ‚è•Ô‚µİ’è
+	//	ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®ç¹°ã‚Šè¿”ã—è¨­å®š
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	//	‰æ‘œ‚ğŠg‘å(MAGnifying)‚·‚é‚Æ‚«‚ÍüŒ`(LINEAR)ƒtƒBƒ‹ƒ^ƒŠƒ“ƒO‚ğg—p
+	//	ç”»åƒã‚’æ‹¡å¤§(MAGnifying)ã™ã‚‹ã¨ãã¯ç·šå½¢(LINEAR)ãƒ•ã‚£ãƒ«ã‚¿ãƒªãƒ³ã‚°ã‚’ä½¿ç”¨
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	//	‰æ‘œ‚ğk¬(MINifying)‚·‚é‚Æ‚«AüŒ`(LINEAR)ƒtƒBƒ‹ƒ^‚µ‚½A“ñ‚Â‚Ìƒ~ƒbƒvƒ}ƒbƒv‚ğüŒ`(LINEARYLY)‚É¬‚º‚½‚à‚Ì‚ğg—p
+	//	ç”»åƒã‚’ç¸®å°(MINifying)ã™ã‚‹ã¨ãã€ç·šå½¢(LINEAR)ãƒ•ã‚£ãƒ«ã‚¿ã—ãŸã€äºŒã¤ã®ãƒŸãƒƒãƒ—ãƒãƒƒãƒ—ã‚’ç·šå½¢(LINEARYLY)ã«æ··ãœãŸã‚‚ã®ã‚’ä½¿ç”¨
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	//	ƒ~ƒbƒvƒ}ƒbƒv‚ğì¬
+	//	ãƒŸãƒƒãƒ—ãƒãƒƒãƒ—ã‚’ä½œæˆ
 	glGenerateMipmap(GL_TEXTURE_2D);
 }
 
 void setLUT(Renderer &r, Mat &lut)
 {
-	//	ƒeƒNƒXƒ`ƒƒ‰æ‘œ‚ğ“Ç‚İ‚Ş
+	//	ãƒ†ã‚¯ã‚¹ãƒãƒ£ç”»åƒã‚’èª­ã¿è¾¼ã‚€
 	glGenTextures(1, &r.lutBuffer);
 	glBindTexture(GL_TEXTURE_3D, r.lutBuffer);
-	//	OpenGL‚É‰æ‘œ‚ğ“n‚·
+	//	OpenGLã«ç”»åƒã‚’æ¸¡ã™
 	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB,
 		256, 256, 256, 0, GL_BGR, GL_UNSIGNED_BYTE, lut.data);
-	//	ƒeƒNƒXƒ`ƒƒ‚ÌŠg‘åk¬‚ÉüŒ`•âŠÔ‚ğg—p
+	//	ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®æ‹¡å¤§ç¸®å°ã«ç·šå½¢è£œé–“ã‚’ä½¿ç”¨
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP);
@@ -631,28 +678,28 @@ void setLUT(Renderer &r, Mat &lut)
 void updateLUT(Renderer &r, Mat &lut)
 {
 	glBindTexture(GL_TEXTURE_3D, r.lutBuffer);
-	//	OpenGL‚É‰æ‘œ‚ğ“n‚·
+	//	OpenGLã«ç”»åƒã‚’æ¸¡ã™
 	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB,
 		256, 256, 256, 0, GL_BGR, GL_UNSIGNED_BYTE, lut.data);
 }
 
 void setObjectVertices(Renderer &r)
 {
-	//	’¸“_”z—ñƒIƒuƒWƒFƒNƒg‚ğİ’è
+	//	é ‚ç‚¹é…åˆ—ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’è¨­å®š
 	glGenVertexArrays(1, &r.vertexArray);
 	glBindVertexArray(r.vertexArray);
 
-	//	’¸“_ƒoƒbƒtƒ@‚ğOpenGL‚É“n‚·
-	glGenBuffers(1, &r.vertexBuffer);							//	ƒoƒbƒtƒ@‚ğ1‚Âì¬
-	glBindBuffer(GL_ARRAY_BUFFER, r.vertexBuffer);			//	ˆÈ~‚ÌƒRƒ}ƒ“ƒh‚ğvertexbufferƒoƒbƒtƒ@‚Éw’è
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * r.obj.vertices.size(), &(r.obj).vertices[0], GL_STATIC_DRAW);		//	’¸“_‚ğOpenGL‚Ìvertexbufer‚É“n‚·
+	//	é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã‚’OpenGLã«æ¸¡ã™
+	glGenBuffers(1, &r.vertexBuffer);							//	ãƒãƒƒãƒ•ã‚¡ã‚’1ã¤ä½œæˆ
+	glBindBuffer(GL_ARRAY_BUFFER, r.vertexBuffer);			//	ä»¥é™ã®ã‚³ãƒãƒ³ãƒ‰ã‚’vertexbufferãƒãƒƒãƒ•ã‚¡ã«æŒ‡å®š
+	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * r.obj.vertices.size(), &(r.obj).vertices[0], GL_STATIC_DRAW);		//	é ‚ç‚¹ã‚’OpenGLã®vertexbuferã«æ¸¡ã™
 
-	//	UVÀ•Wƒoƒbƒtƒ@
+	//	UVåº§æ¨™ãƒãƒƒãƒ•ã‚¡
 	glGenBuffers(1, &r.uvBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, r.uvBuffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec2) * r.obj.uvs.size(), &(r.obj).uvs[0], GL_STATIC_DRAW);
 
-	//	–@üƒoƒbƒtƒ@
+	//	æ³•ç·šãƒãƒƒãƒ•ã‚¡
 	glGenBuffers(1, &r.normalBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, r.normalBuffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * r.obj.normals.size(), &(r.obj).normals[0], GL_STATIC_DRAW);
@@ -661,47 +708,47 @@ void setObjectVertices(Renderer &r)
 void renderObject(Renderer &r)
 {
 	////	Execute Rendering
-	// Œ»İƒoƒCƒ“ƒh‚µ‚Ä‚¢‚éƒVƒF[ƒ_‚Ìuniform•Ï”‚É•ÏŠ·‚ğ‘—‚é
-	// ƒŒƒ“ƒ_ƒŠƒ“ƒO‚·‚éƒ‚ƒfƒ‹‚²‚Æ‚ÉÀs
+	// ç¾åœ¨ãƒã‚¤ãƒ³ãƒ‰ã—ã¦ã„ã‚‹ã‚·ã‚§ãƒ¼ãƒ€ã®uniformå¤‰æ•°ã«å¤‰æ›ã‚’é€ã‚‹
+	// ãƒ¬ãƒ³ãƒ€ãƒªãƒ³ã‚°ã™ã‚‹ãƒ¢ãƒ‡ãƒ«ã”ã¨ã«å®Ÿè¡Œ
 	glUniformMatrix4fv(r.mvpID, 1, GL_FALSE, &r.MVP[0][0]);
 	glUniformMatrix4fv(r.mvID, 1, GL_FALSE, &r.MV[0][0]);
 	glUniform3fv(r.lightDirectionID, 1, &r.lightDirection[0]);
 	glUniform3fv(r.lightColorID, 1, &r.lightColor[0]);
 	glUniform1i(r.lutSwitchID, r.useLUT);
 
-	//	ƒeƒNƒXƒ`ƒƒƒ†ƒjƒbƒg0‚ÉtextureBuffer‚ğƒoƒCƒ“ƒh
+	//	ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒ¦ãƒ‹ãƒƒãƒˆ0ã«textureBufferã‚’ãƒã‚¤ãƒ³ãƒ‰
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, r.textureObject);
-	//	0”Ô–Ú‚ÌƒeƒNƒXƒ`ƒƒƒ†ƒjƒbƒg‚ğ"myTextureSampler"‚ÉƒZƒbƒg
+	//	0ç•ªç›®ã®ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒ¦ãƒ‹ãƒƒãƒˆã‚’"myTextureSampler"ã«ã‚»ãƒƒãƒˆ
 	glUniform1i(r.textureSamplerID, 0);
 
-	//	ƒeƒNƒXƒ`ƒƒƒ†ƒjƒbƒg1‚ÉlutBuffer‚ğƒoƒCƒ“ƒh
+	//	ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒ¦ãƒ‹ãƒƒãƒˆ1ã«lutBufferã‚’ãƒã‚¤ãƒ³ãƒ‰
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_3D, r.lutBuffer);
 	glUniform1i(r.lutSamplerID, 1);
 
-	//	Å‰‚Ì‘®«ƒoƒbƒtƒ@F’¸“_
+	//	æœ€åˆã®å±æ€§ãƒãƒƒãƒ•ã‚¡ï¼šé ‚ç‚¹
 	glEnableVertexAttribArray(GLSL_LOCATION_VERTEX);
 	glBindBuffer(GL_ARRAY_BUFFER, r.vertexBuffer);
 	glVertexAttribPointer(
-		GLSL_LOCATION_VERTEX,	// shader“à‚Ìlocation
-		3,						// —v‘fƒTƒCƒY
-		GL_FLOAT,				// —v‘f‚ÌŒ^
-		GL_FALSE,				// ³‹K‰»H
-		0,						// ƒXƒgƒ‰ƒCƒh
-		(void*)0				// ”z—ñƒoƒbƒtƒ@ƒIƒtƒZƒbƒg
+		GLSL_LOCATION_VERTEX,	// shaderå†…ã®location
+		3,						// è¦ç´ ã‚µã‚¤ã‚º
+		GL_FLOAT,				// è¦ç´ ã®å‹
+		GL_FALSE,				// æ­£è¦åŒ–ï¼Ÿ
+		0,						// ã‚¹ãƒˆãƒ©ã‚¤ãƒ‰
+		(void*)0				// é…åˆ—ãƒãƒƒãƒ•ã‚¡ã‚ªãƒ•ã‚»ãƒƒãƒˆ
 		);
-	//	2”Ô–Ú‚Ì‘®«ƒoƒbƒtƒ@ : UV
+	//	2ç•ªç›®ã®å±æ€§ãƒãƒƒãƒ•ã‚¡ : UV
 	glEnableVertexAttribArray(GLSL_LOCATION_UV);
 	glBindBuffer(GL_ARRAY_BUFFER, r.uvBuffer);
 	glVertexAttribPointer(GLSL_LOCATION_UV, 2, GL_FLOAT, GL_FALSE, 0, (void*)0);
-	//	3”Ô–Ú‚Ì‘®«ƒoƒbƒtƒ@ : –@ü
+	//	3ç•ªç›®ã®å±æ€§ãƒãƒƒãƒ•ã‚¡ : æ³•ç·š
 	glEnableVertexAttribArray(GLSL_LOCATION_NORMAL);
 	glBindBuffer(GL_ARRAY_BUFFER, r.normalBuffer);
 	glVertexAttribPointer(GLSL_LOCATION_NORMAL, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
-	//	OŠpŒ`ƒ|ƒŠƒSƒ“‚ğ•`‰æ
+	//	ä¸‰è§’å½¢ãƒãƒªã‚´ãƒ³ã‚’æç”»
 	glDrawArrays(GL_TRIANGLES, 0, r.obj.vertices.size());
-	//	•`‰æŒã‚Éƒoƒbƒtƒ@‚ğƒNƒŠƒA
+	//	æç”»å¾Œã«ãƒãƒƒãƒ•ã‚¡ã‚’ã‚¯ãƒªã‚¢
 	glDisableVertexAttribArray(GLSL_LOCATION_VERTEX);
 	glDisableVertexAttribArray(GLSL_LOCATION_UV);
 	glDisableVertexAttribArray(GLSL_LOCATION_NORMAL);
@@ -709,7 +756,7 @@ void renderObject(Renderer &r)
 	glBindTexture(GL_TEXTURE_3D, 0);
 }
 
-//	Camera Matrix‚©‚çOpenGL‚Ì“§‹“Š‰es—ñ‚ğì¬
+//	Camera Matrixã‹ã‚‰OpenGLã®é€è¦–æŠ•å½±è¡Œåˆ—ã‚’ä½œæˆ
 glm::mat4 projectionMatfromCameraMatrix(glm::mat3 cameraMat, int winW, int winH, double znear, double zfar)
 {
 	//	Load camera parameters
@@ -745,9 +792,9 @@ void cursorPosEvent(GLFWwindow *window, double x, double y)
 {
 	double xDisp = x - xBegin;
 	double yDisp = y - yBegin;
-	double dx = -xDisp / subWinW / 2.0;
-	double dy = yDisp / subWinH / 2.0;
-	double length = ::sqrt(dx*dx + dy*dy);	//	ƒNƒH[ƒ^ƒjƒIƒ“‚Ì’·‚³
+	double dx = -xDisp / subWinW / 5.0;
+	double dy = yDisp / subWinH / 5.0;
+	double length = ::sqrt(dx*dx + dy*dy);	//	ã‚¯ã‚©ãƒ¼ã‚¿ãƒ‹ã‚ªãƒ³ã®é•·ã•
 	double rad;
 	glm::quat after;
 
@@ -762,8 +809,8 @@ void cursorPosEvent(GLFWwindow *window, double x, double y)
 		}
 		break;
 	case GLFW_MOUSE_BUTTON_MIDDLE:
-		objTx += dx * 1000;
-		objTy += dy * 1000;
+		objTx += dx * 100;
+		objTy += dy * 100;
 		break;
 	case GLFW_MOUSE_BUTTON_RIGHT:
 		break;
