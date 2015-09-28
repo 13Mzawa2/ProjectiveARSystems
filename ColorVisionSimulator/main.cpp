@@ -80,6 +80,8 @@ static glm::quat current = glm::quat(1.0, 0.0, 0.0, 0.0);
 std::vector<glm::mat4> prePose = { glm::mat4(1.0), glm::mat4(1.0), glm::mat4(1.0) };
 static float weightV = 0.9, weightA = 0.3;			//	mean = mix(p0, mix(p1, p2, weightA), weightV) 
 static double threshR = 1.0e-6, threshT = 0.8;		//	物体が止まっていると認識する閾値
+//static float weightV = 0.0, weightA = 0.0;			//	mean = mix(p0, mix(p1, p2, weightA), weightV) 
+//static double threshR = 0, threshT = 0;		//	物体が止まっていると認識する閾値
 
 double xBegin, yBegin;
 int pressedMouseButton = 0;
@@ -461,25 +463,25 @@ int main(void)
 			//	球面線形補間
 			glm::quat q_mean = glm::slerp(q[0], glm::slerp(q[1], q[2], 0.9f), 0.9f);		//	x(1-a)+ya
 			//	クォータニオンを回転行列に変換
-			glm::mat4 r = glm::mat4_cast(q_mean);
+			glm::mat4 r_mean = glm::mat4_cast(q_mean);
 			//	閾値処理
 			static glm::quat q_mean_temp = q_mean;
 			//cout << abs(glm::dot(q_mean, q[1]) - glm::length(q_mean)) << endl;
 			if (abs(glm::dot(q_mean, q[1]) - glm::length(q_mean)) < threshR)
-				r = glm::mat4_cast(q_mean_temp);
+				r_mean = glm::mat4_cast(q_mean_temp);
 			else
 				q_mean_temp = q[0];
 			//	平行移動ベクトルは単純に加重平均
-			glm::vec4 t = glm::mix((prePose[0])[3], glm::mix((prePose[1])[3], (prePose[2])[3], weightA), weightV);
+			glm::vec4 t_mean = glm::mix((prePose[0])[3], glm::mix((prePose[1])[3], (prePose[2])[3], weightA), weightV);
 			//	閾値処理
-			static glm::vec4 t_temp = t;
+			static glm::vec4 t_temp = t_mean;
 			//cout << glm::distance(t, prePose[1][3]) << endl;
-			if (glm::distance(t, prePose[1][3]) < threshT)
-				t = t_temp;
+			if (glm::distance(t_mean, prePose[1][3]) < threshT)
+				t_mean = t_temp;
 			else
-				t_temp = prePose[0][3];
+				t_temp = t_mean;
 			//	並進・回転の合成
-			markerTransMat = glm::translate(glm::vec3(t)) * r;
+			markerTransMat = glm::translate(glm::vec3(t_mean)) * r_mean;
 			//for (int i = 0; i < 4; i++){
 			//	for (int j = 0; j < 4; j++)
 			//		cout << markerTransMat[i][j] << ", ";
