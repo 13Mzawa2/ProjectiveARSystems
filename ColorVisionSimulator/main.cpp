@@ -79,7 +79,7 @@ static glm::quat current = glm::quat(1.0, 0.0, 0.0, 0.0);
 //	履歴データ 0が最も新しい 過去2フレームを使用
 std::vector<glm::mat4> prePose = { glm::mat4(1.0), glm::mat4(1.0), glm::mat4(1.0) };
 static float weightV = 0.9, weightA = 0.3;			//	mean = mix(p0, mix(p1, p2, weightA), weightV) 
-static double threshR = 1.0e-6, threshT = 0.8;		//	物体が止まっていると認識する閾値
+static double threshR = 1.0e-6, threshT = 0.5;		//	物体が止まっていると認識する閾値
 //static float weightV = 0.0, weightA = 0.0;			//	mean = mix(p0, mix(p1, p2, weightA), weightV) 
 //static double threshR = 0, threshT = 0;		//	物体が止まっていると認識する閾値
 
