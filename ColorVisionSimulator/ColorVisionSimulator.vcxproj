@@ -37,13 +37,13 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\common\prop\Commons.props" />
     <Import Project="useARToolKit.props" />
-    <Import Project="..\common\prop\KinectSDK2.props" />
+    <Import Project="..\common\prop\PointGrayCamera.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\common\prop\Commons.props" />
     <Import Project="useARToolKit.props" />
-    <Import Project="..\common\prop\KinectSDK2.props" />
+    <Import Project="..\common\prop\PointGrayCamera.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -89,21 +89,23 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\common\inc\FlyCap2CVWrapper.h" />
     <ClInclude Include="..\common\inc\objloader.hpp" />
-    <ClInclude Include="..\common\inc\OpenCV3Linker.h" />
     <ClInclude Include="..\common\inc\OpenGLHeader.h" />
     <ClInclude Include="..\common\inc\Shader.h" />
     <ClInclude Include="ARTKLinker.h" />
-    <ClInclude Include="Kinect2WithOpenCVWrapper.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\common\src\FlyCap2CVWrapper.cpp" />
     <ClCompile Include="..\common\src\objloader.cpp" />
     <ClCompile Include="..\common\src\Shader.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="shader\fragment.glsl" />
+    <None Include="shader\fragment_drawpix.glsl" />
     <None Include="shader\vertex.glsl" />
+    <None Include="shader\vertex_drawpix.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

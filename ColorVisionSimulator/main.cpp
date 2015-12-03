@@ -2,9 +2,8 @@
 #include <iostream>
 #include "Shader.h"
 #include "objloader.hpp"
-#include "Kinect2WithOpenCVWrapper.h"
+#include "FlyCap2CVWrapper.h"
 #include "OpenGLHeader.h"
-#include "OpenCV3Linker.h"
 #include "ARTKLinker.h"
 
 using namespace cv;
@@ -25,34 +24,34 @@ const char *lutDir[5] = {
 	"../common/data/lut/LUT_elder_70.png",
 	"../common/data/lut/LUT_elder_80.png"
 };
+const char calibDir[] = "../common/data/calibdata.xml";
 
-//-----------------------------------------------------
-//	Constants
-//-----------------------------------------------------
-//	RoomAliveToolkitでの測定結果
-//	KinectのRGBカメラパラメータ
-glm::mat3 colorCameraMatrix(
-	1088.5942262014253, 0, 0,
-	0, 1088.4801711642506, 0,
-	987.9108474275381, 527.64605393047646, 1);
-double colorLensDistortion[4] = {
-	0.04229, -0.05348, -0.00024, 0.00335 };
-glm::mat3 projectorCameraMatrix(
-	2898.8350799438763, 0, 0,
-	0, 2898.8350799438763, 0,
-	768.59447467126, 273.6576771850149, 1);
-glm::mat4 projectorPose(
-	0.988940417766571, 0.066547796130180359, -0.13254536688327789, 0,
-	-0.011403728276491165, 0.92515689134597778, 0.37941363453865051, 0,
-	0.14787440001964569, -0.37370595335960388, 0.915683925151825, 0,
-	-70.988007578053944, 606.12622324461007, -999.45766623241938, 1);
+////-----------------------------------------------------
+////	Constants
+////-----------------------------------------------------
+////	RoomAliveToolkitでの測定結果
+////	KinectのRGBカメラパラメータ
+//glm::mat3 colorCameraMatrix(
+//	1088.5942262014253, 0, 0,
+//	0, 1088.4801711642506, 0,
+//	987.9108474275381, 527.64605393047646, 1);
+//double colorLensDistortion[4] = {
+//	0.04229, -0.05348, -0.00024, 0.00335 };
+//glm::mat3 projectorCameraMatrix(
+//	2898.8350799438763, 0, 0,
+//	0, 2898.8350799438763, 0,
+//	768.59447467126, 273.6576771850149, 1);
+//glm::mat4 projectorPose(
+//	0.988940417766571, 0.066547796130180359, -0.13254536688327789, 0,
+//	-0.011403728276491165, 0.92515689134597778, 0.37941363453865051, 0,
+//	0.14787440001964569, -0.37370595335960388, 0.915683925151825, 0,
+//	-70.988007578053944, 606.12622324461007, -999.45766623241938, 1);
 
 
 //-----------------------------------------------------
 //	for ARToolkit
 //-----------------------------------------------------
 #define MARKER_SIZE 48.0f
-ARParam cparam;
 ARTKMarker marker = {
 	"data/markerB.pat",
 	-1,
@@ -62,8 +61,11 @@ ARTKMarker marker = {
 	{0.0, 0.0},
 	{0.0}
 };
-Kinect2WithOpenCVWrapper kinect;
+FlyCap2CVWrapper flycap;
 Mat colorImg;
+Mat cameraMatrix, distCoeffs, cameraMatrixProj, distCoeffsProj, RProCam, TProCam;
+Size cameraSize, projSize;
+glm::mat4 glmProjMat, glmTransProCam;
 
 //-----------------------------------------------------
 //	GLFW User Interface
@@ -123,6 +125,86 @@ typedef struct Renderer
 	bool useLUT = false;
 };
 
+class GLImage
+{
+private:
+	GLuint vao;		//	頂点配列オブジェクト
+	GLuint vbo;		//	頂点バッファオブジェクト
+	GLuint image;	//	テクスチャオブジェクト
+	GLuint imageLoc;
+	Shader s;
+	int vertices;
+public:
+	GLImage()
+	{
+	}
+	void init(Size sz)
+	{
+		// 頂点配列オブジェクト
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
+
+		// 頂点バッファオブジェクト
+		glGenBuffers(1, &vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+
+		// [-1, 1] の正方形
+		static const GLfloat position[][2] =
+		{
+			{ -1.0f, -1.0f },
+			{ 1.0f, -1.0f },
+			{ 1.0f, 1.0f },
+			{ -1.0f, 1.0f }
+		};
+		vertices = sizeof(position) / sizeof (position[0]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(position), position, GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
+		glEnableVertexAttribArray(0);
+
+		//	テクスチャ
+		glGenTextures(1, &image);
+		glBindTexture(GL_TEXTURE_RECTANGLE, image);
+		glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGB, sz.width, sz.height, 0, GL_BGR, GL_UNSIGNED_BYTE, NULL);
+		glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+		glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+
+		//	シェーダのロード
+		s.initGLSL("./shader/vertex_drawpix.glsl", "./shader/fragment_drawpix.glsl");
+		imageLoc = glGetUniformLocation(s.program, "image");
+	}
+	void draw(Mat frame)
+	{
+		// 切り出した画像をテクスチャに転送する
+		flip(frame, frame, 0);
+		glBindTexture(GL_TEXTURE_RECTANGLE, image);
+		glTexSubImage2D(GL_TEXTURE_RECTANGLE, 0, 0, 0, frame.cols, frame.rows, GL_BGR, GL_UNSIGNED_BYTE, frame.data);
+
+		// シェーダプログラムの使用開始
+		glUseProgram(s.program);
+
+		// uniform サンプラの指定
+		glUniform1i(imageLoc, 0);
+
+		// テクスチャユニットとテクスチャの指定
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_RECTANGLE, image);
+
+		// 描画に使う頂点配列オブジェクトの指定
+		glBindVertexArray(vao);
+
+		// 図形の描画
+		glDrawArrays(GL_TRIANGLE_FAN, 0, vertices);
+
+		// 頂点配列オブジェクトの指定解除
+		glBindVertexArray(0);
+
+		// シェーダプログラムの使用終了
+		glUseProgram(0);
+	}
+};
+
 Renderer mainRenderer, subRenderer;
 Mat	texImg;
 Mat lutMat;
@@ -147,6 +229,8 @@ void cursorPosEvent(GLFWwindow *window, double x, double y);
 void scrollEvent(GLFWwindow *window, double xofset, double yofset);
 void safeTerminate();
 void arglCameraFrustumRH(ARParam *cparam, const double focalmin, const double focalmax, GLdouble m_projection[16]);
+void cameraFrustumRH(Mat cameraMatrix, Size cameraSize, glm::mat4 &projMatrix, double znear, double zfar);
+void composeRT(Mat R, Mat T, glm::mat4 &RT);
 
 int initWindow(void)
 {
@@ -164,7 +248,7 @@ int initWindow(void)
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);	//	古いOpenGLを使わない
 
 	// Main Windowの用意
-	mainWindow = glfwCreateWindow(1920/2, 1080/2, "Main Window", NULL, NULL);
+	mainWindow = glfwCreateWindow(cameraSize.width, cameraSize.height, "Main Window", NULL, NULL);
 	if (mainWindow == NULL){
 		cerr << "GLFWウィンドウの生成に失敗しました. Intel GPUを使用している場合は, OpenGL 3.3と相性が良くないため，2.1を試してください．\n";
 		glfwTerminate();
@@ -174,7 +258,7 @@ int initWindow(void)
 	// Sub Windowの用意
 	int monitorCount;
 	GLFWmonitor **monitors = glfwGetMonitors(&monitorCount);
-	subWindow = glfwCreateWindow(1024, 768, "Sub Window", monitors[PROJ_WIN_ID], NULL);
+	subWindow = glfwCreateWindow(projSize.width, projSize.height, "Sub Window", monitors[PROJ_WIN_ID], NULL);
 	if (subWindow == NULL){
 		cerr << "GLFWウィンドウの生成に失敗しました. Intel GPUを使用している場合は, OpenGL 3.3と相性が良くないため，2.1を試してください．\n";
 		glfwTerminate();
@@ -224,7 +308,7 @@ void initSubWindow(void)
 	//	Sub Window Setting
 	glfwMakeContextCurrent(subWindow);				//	sub windowをカレントにする
 
-	glClearColor(0.0, 0.0, 0.0, 1.0);
+	glClearColor(1.0, 1.0, 1.0, 1.0);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_LESS);				//	カメラに近い面だけレンダリングする
@@ -255,6 +339,24 @@ void initSubWindow(void)
 
 void initARTK(void)
 {
+	//	カメラパラメータのロード
+	FileStorage fs(calibDir, FileStorage::READ);
+	FileNode Camera = fs["Camera"];
+	Camera["size"] >> cameraSize;
+	Camera["CameraMatrix"] >> cameraMatrix;
+	Camera["DistCoeffs"] >> distCoeffs;
+
+	FileNode Projector = fs["Projector"];
+	Projector["size"] >> projSize;
+	Projector["CameraMatrix"] >> cameraMatrixProj;
+	Projector["DistCoeffs"] >> distCoeffsProj;
+
+	FileNode ProCam = fs["ProCam"];
+	ProCam["R"] >> RProCam;
+	ProCam["T"] >> TProCam;
+
+	cameraFrustumRH(cameraMatrix, cameraSize, glmProjMat, 0.1, 5000);
+	composeRT(RProCam, TProCam, glmTransProCam);
 
 	//	パターンファイルのロード
 	if ((marker.patt_id = arLoadPatt(marker.patt_name)) < 0)
@@ -264,50 +366,25 @@ void initARTK(void)
 		safeTerminate();
 		exit(-1);
 	}
-	//	カメラパラメータのロード
-	ARParam wparam;
-	arParamLoad("data/kinect_param.dat", 1, &wparam);
-	arParamChangeSize(&wparam, colorImg.cols, colorImg.rows, &cparam);
-	arParamDisp(&cparam);
-	for (int i = 0; i < 3; i++)
-	{
-		for (int j = 0; j < 3; j++)
-		{
-			colorCameraMatrix[i][j] = cparam.mat[i][j];
-		}
-	}
-	//cparam.xsize = colorImg.cols; cparam.ysize = colorImg.rows;
-	//for (int i = 0; i < 4; i++)
-	//{
-	//	for (int j = 0; j < 3; j++)
-	//	{
-	//		cparam.mat[i][j] = colorCameraMatrix[i][j];
-	//	}
-	//}
-	//for (int i = 0; i < 4; i++)
-	//{
-	//	cparam.dist_factor[i] = colorLensDistortion[i];
-	//}
-	//arParamDisp(&cparam);
 
-	arInitCparam(&cparam);
+
 }
 
 int main(void)
 {
 	//	カメラの準備
-	kinect.enableColorFrame();
 	namedWindow("camera");
 	while (1)
 	{
-		kinect.getColorFrame(colorImg);
-		safeRelease(kinect.colorFrame);
+		colorImg = flycap.readImage();
 		Mat temp;
-		cv::resize(colorImg, temp, colorImg.size() / 2);
+		cv::resize(colorImg, temp, colorImg.size());
+		cv::flip(temp, temp, 1);
 		cv::imshow("camera", temp);
-		if (waitKey(15) == ' ') break;
+		if (waitKey(1) == ' ') break;
 	}
-	initWindow();
+	initARTK();
+	if(initWindow() == EXIT_FAILURE) exit(-1);
 
 	texImg = imread(textureDir);
 	if (texImg.empty())
@@ -326,11 +403,13 @@ int main(void)
 		return EXIT_FAILURE;
 	}
 
-
+	cout << "\nMain Windowの設定" << endl;
 	initMainWindow();
+	cout << "\nSub Windowの設定" << endl;
 	initSubWindow();
-
-	initARTK();
+	cout << "\n画像描画の設定" << endl;
+	GLImage glImg;
+	glImg.init(cameraSize);
 
 	//	メインループ
 	while (glfwGetKey(mainWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS		//	Escキー
@@ -398,19 +477,19 @@ int main(void)
 		//	Get AR Marker Transform
 		//------------------------------
 		//	カメラ画像取得
-		kinect.getColorFrame(colorImg);
-		safeRelease(kinect.colorFrame);
+		colorImg = flycap.readImage();
+		flip(colorImg, colorImg, 1);
 		//	ARToolKitに2値化画像を転送
 		Mat threshImg, cameraBGRA, temp;
-		cv::cvtColor(colorImg, threshImg, CV_BGR2GRAY);
-		cv::adaptiveThreshold(threshImg, threshImg, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 55, 10);
-		cv::GaussianBlur(threshImg, threshImg, cv::Size(9, 9), 3.0);
-		cv::cvtColor(threshImg, cameraBGRA, CV_GRAY2BGRA);
+		//cv::cvtColor(colorImg, threshImg, CV_BGR2GRAY);
+		//cv::adaptiveThreshold(threshImg, threshImg, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 55, 10);
+		//cv::GaussianBlur(threshImg, threshImg, cv::Size(9, 9), 3.0);
+		//cv::cvtColor(threshImg, cameraBGRA, CV_GRAY2BGRA);
+		cvtColor(colorImg, cameraBGRA, CV_BGR2BGRA);
 		ARUint8 *imgData = (ARUint8*)cameraBGRA.data;
-		temp = Mat(cameraBGRA.size(), CV_8UC4);
-		::memcpy(temp.data, imgData, temp.total()*temp.channels());
-		cv::resize(temp, temp, colorImg.size()/2);
-		cv::imshow("camera", temp);
+		cvtColor(colorImg, threshImg, CV_BGR2GRAY);
+		threshold(threshImg, threshImg, 128, 255, CV_THRESH_BINARY);
+		cv::imshow("camera", threshImg);
 		
 		//	ARマーカーを認識
 		ARMarkerInfo *markerInfo;
@@ -445,11 +524,6 @@ int main(void)
 					markerTransMat[j][i] = marker.patt_trans[i][j];
 				}
 			}
-			//for (int i = 0; i < 4; i++){
-			//	for (int j = 0; j < 4; j++)
-			//		cout << markerTransMat[i][j] << ", ";
-			//	cout << ";\n";
-			//}
 			////	マーカー位置姿勢の加重平均をとる
 			prePose.insert(prePose.begin(), markerTransMat);	//	prePose[0]に挿入
 			prePose.pop_back();		//	-3フレーム目を削除
@@ -495,32 +569,17 @@ int main(void)
 		glfwMakeContextCurrent(mainWindow);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		// 射影行列：45°の視界、アスペクト比4:3、表示範囲：0.1単位  100単位
-		//glm::mat4 Projection = glm::perspective(45.0f, 1920.0f / 1080.0f, 0.1f, 10000.0f);
-		//glm::mat4 pj = projectionMatfromCameraMatrix(colorCameraMatrix, subWinW, subWinH, 0.001, 10000.0);
-		//for (int i = 0; i < 4; i++){
-		//	for (int j = 0; j < 4; j++)
-		//		cout << pj[i][j] << ",";
-		//	cout << ";\n";
-		//}
-		glm::mat4 glmProjMat(1.0); double p[16];
-		arglCameraFrustumRH(&cparam, 0.1f, 10000.0f, p);
-		for (int i = 0; i < 4; i++)
-		{
-			for (int j = 0; j < 4; j++)
-			{
-				glmProjMat[i][j] = p[i * 4 + j];
-				//cout << glmProjMat[i][j] << ",";
-			}
-			//cout << ";\n";
-		}
+		glImg.draw(colorImg);
+
+		//	プロジェクション行列
+		cameraFrustumRH(cameraMatrix, cameraSize, glmProjMat, 0.1, 5000);
 		glm::mat4 Projection = glmProjMat;
 		// カメラ行列
 		glm::mat4 View = glm::mat4(1.0)
 			* glm::lookAt(
 			glm::vec3(0, 0, 0), // カメラの原点
 			glm::vec3(0, 0, 1), // 見ている点
-			glm::vec3(0, -1, 0)  // カメラの上方向
+			glm::vec3(0, 1, 0)  // カメラの上方向
 			);
 		// モデル行列：単位行列(モデルは原点にあります。)
 		glm::mat4 marker2model = glm::mat4(1.0)
@@ -530,17 +589,17 @@ int main(void)
 			//* glm::translate(glm::vec3(MARKER_SIZE / 2 + 11.0f + 150.0f, MARKER_SIZE / 2 + 11.0f, 105.6f));
 		glm::mat4 Model;  // 各モデルを変える！
 		Model = glm::mat4(1.0f)
+			* marker2model
 			* markerTransMat
-			* marker2model;
-			//* glm::translate(glm::vec3(0.0, 10.0, 0.0))
-			//* glm::rotate(angle, glm::vec3(1.0, 1.0, 0.0));
+			* glm::mat4_cast(current)
+			* glm::translate(glm::vec3(objTx, objTy, objTz));;
 		
 		//	Render Object
 		//	Our ModelViewProjection : multiplication of our 3 matrices
 		mainRenderer.shader.enable();
 		mainRenderer.MV = View * Model;
 		mainRenderer.MVP = Projection * mainRenderer.MV;
-		mainRenderer.lightDirection = glm::vec3(markerTransMat[3]) - glm::vec3(projectorPose[3]);
+		mainRenderer.lightDirection = glm::vec3(markerTransMat[3]) - glm::vec3(glmTransProCam[3]);
 		mainRenderer.lightColor = glm::vec3(1.0, 1.0, 1.0);
 		
 		//	Execute Rendering
@@ -574,25 +633,8 @@ int main(void)
 		//	for (int j = 0; j < 4; j++)
 		//		glmProjMat[i][j] = projmat[i + j * 4];
 		//}
-		ARParam subparam;
-		//arParamChangeSize(&cparam, colorImg.cols, colorImg.rows, &subparam);
-		subparam.xsize = subWinW; subparam.ysize = subWinH;
-		for (int i = 0; i < 4; i++){
-			for (int j = 0; j < 3; j++){
-				if (i == 3) subparam.mat[j][i] = 0.0;
-				else subparam.mat[j][i] = projectorCameraMatrix[i][j];
-			}
-			subparam.dist_factor[i] = 0.0;
-		}
-		//arParamDisp(&subparam);
-		arglCameraFrustumRH(&subparam, 0.1f, 10000.0f, p);
-		for (int i = 0; i < 4; i++){
-			for (int j = 0; j < 4; j++){
-				glmProjMat[i][j] = p[i * 4 + j];
-				//cout << glmProjMat[i][j] << ",";
-			}
-			//cout << ";\n";
-		}
+		
+		cameraFrustumRH(cameraMatrixProj, projSize, glmProjMat, 0.1, 5000);
 		Projection = glmProjMat;
 		//Projection = projectionMatfromCameraMatrix(projectorCameraMatrix, subWinW, subWinH, 0.1, 10000.0);
 		//	カメラを原点としたプロジェクタ位置姿勢
@@ -600,24 +642,22 @@ int main(void)
 			* glm::lookAt(
 			glm::vec3(0, 0, 0), // カメラの原点
 			glm::vec3(0, 0, 1), // 見ている点
-			glm::vec3(0, -1, 0)  // カメラの上方向
+			glm::vec3(0, 1, 0)  // カメラの上方向
 			)
-			* glm::inverse(projectorPose)
-			* glm::translate(glm::vec3(116.699 + objTx, 549.479 + objTy, -105.775 + objTz))
-			* glm::mat4_cast(glm::quat(-0.940652, -0.338357, 0.0235807, 0.0112587))
+			* glmTransProCam
 			;
 			//* projectorPose;
 
 		//	カメラを原点としたワールド座標系
 		Model = glm::mat4(1.0)
+			* marker2model
 			* markerTransMat
-			* marker2model;
-			//* glm::mat4_cast(current)
-			//* glm::translate(glm::vec3(objTx, objTy, objTz));
+			* glm::mat4_cast(current)
+			* glm::translate(glm::vec3(objTx, objTy, objTz));
 
 		subRenderer.MV = View * Model;
 		subRenderer.MVP = Projection * View * Model;
-		subRenderer.lightDirection = glm::vec3(markerTransMat[3]) - glm::vec3(projectorPose[3]);
+		subRenderer.lightDirection = glm::vec3(markerTransMat[3]) - glm::vec3(glmTransProCam[3]);
 		subRenderer.lightColor = glm::vec3(1.0, 1.0, 1.0);
 		
 		renderObject(subRenderer);
@@ -829,10 +869,6 @@ void scrollEvent(GLFWwindow *window, double xofset, double yofset)
 
 void safeTerminate()
 {
-	safeRelease(kinect.colorDescription);
-	safeRelease(kinect.colorReader);
-	safeRelease(kinect.colorSource);
-	safeRelease(kinect.kinect);
 	glfwTerminate();
 }
 
@@ -893,4 +929,39 @@ void arglCameraFrustumRH(ARParam *cparam, const double focalmin, const double fo
 			q[i][2] * trans[2][3] +
 			q[i][3];
 	}
+}
+
+//	OpenCVカメラパラメータからOpenGL(GLM)プロジェクション行列を得る関数
+void cameraFrustumRH(Mat camMat, Size camSz, glm::mat4 &projMat, double znear, double zfar)
+{
+	//	Load camera parameters
+	double fx = camMat.at<double>(0, 0);
+	double fy = camMat.at<double>(1, 1);
+	double cx = camMat.at<double>(0, 2);
+	double cy = camMat.at<double>(1, 2);
+
+	double fovY = 1.0 / (fy / camSz.height * 2);
+	double aspect = camSz.width / camSz.height * fx / fy;
+	double frustumH = znear * fovY;
+	double frustumW = frustumH * aspect;
+	double offsetX = (camSz.width / 2 - cx) / camSz.width * frustumW * 2;
+	double offsetY = (camSz.height / 2 - cy) / camSz.height * frustumH * 2;
+
+	glm::mat4 projection = glm::frustum(
+		-frustumW - offsetX, frustumW - offsetX,
+		-frustumH - offsetY, frustumH - offsetY, 
+		znear, zfar);
+	projMat = projection;
+}
+
+void composeRT(Mat R, Mat T, glm::mat4 &RT)
+{
+	glm::mat4 trans(1.0);
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 3; j++){
+			trans[j][i] = R.at<double>(i, j);
+		}
+		trans[3][i] = T.at<double>(i);
+	}
+	RT = trans;
 }
