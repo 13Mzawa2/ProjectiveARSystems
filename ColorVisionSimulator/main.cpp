@@ -4,7 +4,6 @@
 #include "objloader.hpp"
 #include "FlyCap2CVWrapper.h"
 #include "OpenGLHeader.h"
-#include "ARTKLinker.h"
 
 using namespace cv;
 using namespace std;
@@ -24,7 +23,7 @@ const char *lutDir[5] = {
 	"../common/data/lut/LUT_elder_70.png",
 	"../common/data/lut/LUT_elder_80.png"
 };
-const char calibDir[] = "../common/data/calibdata.xml";
+const char calibDir[] = "./data/calibdata.xml";
 
 ////-----------------------------------------------------
 ////	Constants
@@ -49,23 +48,15 @@ const char calibDir[] = "../common/data/calibdata.xml";
 
 
 //-----------------------------------------------------
-//	for ARToolkit
+//	for Calibration Data
 //-----------------------------------------------------
 #define MARKER_SIZE 48.0f
-ARTKMarker marker = {
-	"data/markerB.pat",
-	-1,
-	0,
-	0,
-	MARKER_SIZE,
-	{0.0, 0.0},
-	{0.0}
-};
 FlyCap2CVWrapper flycap;
 Mat colorImg;
 Mat cameraMatrix, distCoeffs, cameraMatrixProj, distCoeffsProj, RProCam, TProCam;
 Size cameraSize, projSize;
 glm::mat4 glmProjMat, glmTransProCam;
+Mat mapC1, mapC2;
 
 //-----------------------------------------------------
 //	GLFW User Interface
@@ -140,6 +131,7 @@ public:
 	}
 	void init(Size sz)
 	{
+		glfwMakeContextCurrent(mainWindow);
 		// 頂点配列オブジェクト
 		glGenVertexArrays(1, &vao);
 		glBindVertexArray(vao);
@@ -176,13 +168,16 @@ public:
 	}
 	void draw(Mat frame)
 	{
+		glfwMakeContextCurrent(mainWindow);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 		// 切り出した画像をテクスチャに転送する
 		flip(frame, frame, 0);
 		glBindTexture(GL_TEXTURE_RECTANGLE, image);
 		glTexSubImage2D(GL_TEXTURE_RECTANGLE, 0, 0, 0, frame.cols, frame.rows, GL_BGR, GL_UNSIGNED_BYTE, frame.data);
 
 		// シェーダプログラムの使用開始
-		glUseProgram(s.program);
+		s.enable();
 
 		// uniform サンプラの指定
 		glUniform1i(imageLoc, 0);
@@ -201,7 +196,7 @@ public:
 		glBindVertexArray(0);
 
 		// シェーダプログラムの使用終了
-		glUseProgram(0);
+		s.disable();
 	}
 };
 
@@ -223,12 +218,11 @@ void renderObject(Renderer &r);
 int initWindow(void);
 void initMainWindow(void);
 void initSubWindow(void);
-void initARTK(void);
+void initCamera(void);
 void mouseEvent(GLFWwindow *window, int button, int state, int optionkey);
 void cursorPosEvent(GLFWwindow *window, double x, double y);
 void scrollEvent(GLFWwindow *window, double xofset, double yofset);
 void safeTerminate();
-void arglCameraFrustumRH(ARParam *cparam, const double focalmin, const double focalmax, GLdouble m_projection[16]);
 void cameraFrustumRH(Mat cameraMatrix, Size cameraSize, glm::mat4 &projMatrix, double znear, double zfar);
 void composeRT(Mat R, Mat T, glm::mat4 &RT);
 
@@ -280,7 +274,7 @@ void initMainWindow(void)
 {
 	//	Main Window Setting
 	glfwMakeContextCurrent(mainWindow);				//	main windowをカレントにする
-
+	glfwSwapInterval(10);				//	SwapBufferのインターバル
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
@@ -307,6 +301,7 @@ void initSubWindow(void)
 {
 	//	Sub Window Setting
 	glfwMakeContextCurrent(subWindow);				//	sub windowをカレントにする
+	glfwSwapInterval(1);				//	SwapBufferのインターバル
 
 	glClearColor(1.0, 1.0, 1.0, 1.0);
 	glEnable(GL_DEPTH_TEST);
@@ -337,7 +332,7 @@ void initSubWindow(void)
 	glfwSetScrollCallback(subWindow, scrollEvent);
 }
 
-void initARTK(void)
+void initCamera(void)
 {
 	//	カメラパラメータのロード
 	FileStorage fs(calibDir, FileStorage::READ);
@@ -357,34 +352,20 @@ void initARTK(void)
 
 	cameraFrustumRH(cameraMatrix, cameraSize, glmProjMat, 0.1, 5000);
 	composeRT(RProCam, TProCam, glmTransProCam);
-
-	//	パターンファイルのロード
-	if ((marker.patt_id = arLoadPatt(marker.patt_name)) < 0)
-	{
-		cout << "パターンファイルが読み込めませんでした．ディレクトリを確認してください．\n"
-			<< "場所：" << marker.patt_name << endl;
-		safeTerminate();
-		exit(-1);
-	}
-
-
+	//	Undistort Map
+	initUndistortRectifyMap(
+		cameraMatrix, distCoeffs,
+		Mat(), cameraMatrix, cameraSize, CV_32FC1,
+		mapC1, mapC2);
 }
 
 int main(void)
 {
-	//	カメラの準備
-	namedWindow("camera");
-	while (1)
-	{
-		colorImg = flycap.readImage();
-		Mat temp;
-		cv::resize(colorImg, temp, colorImg.size());
-		cv::flip(temp, temp, 1);
-		cv::imshow("camera", temp);
-		if (waitKey(1) == ' ') break;
-	}
-	initARTK();
+	initCamera();
+
 	if(initWindow() == EXIT_FAILURE) exit(-1);
+	//	カメラの準備
+	//namedWindow("camera");
 
 	texImg = imread(textureDir);
 	if (texImg.empty())
@@ -411,6 +392,24 @@ int main(void)
 	GLImage glImg;
 	glImg.init(cameraSize);
 
+	////	白色を描画
+	//glfwMakeContextCurrent(subWindow);
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//glfwSwapBuffers(subWindow);
+
+	//while (glfwGetKey(mainWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS		//	Escキー
+	//	&& glfwGetKey(subWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS)
+	//{
+	//	colorImg = flycap.readImage();
+	//	Mat temp;
+	//	cv::flip(colorImg, temp, 1);
+
+	//	glImg.draw(temp);
+	//	//	描画結果を反映
+	//	glfwSwapBuffers(mainWindow);
+
+	//	glfwPollEvents();
+	//}
 	//	メインループ
 	while (glfwGetKey(mainWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS		//	Escキー
 		&& glfwGetKey(subWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS
@@ -476,100 +475,105 @@ int main(void)
 		//------------------------------
 		//	Get AR Marker Transform
 		//------------------------------
-		//	カメラ画像取得
-		colorImg = flycap.readImage();
-		flip(colorImg, colorImg, 1);
-		//	ARToolKitに2値化画像を転送
-		Mat threshImg, cameraBGRA, temp;
-		//cv::cvtColor(colorImg, threshImg, CV_BGR2GRAY);
-		//cv::adaptiveThreshold(threshImg, threshImg, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 55, 10);
-		//cv::GaussianBlur(threshImg, threshImg, cv::Size(9, 9), 3.0);
-		//cv::cvtColor(threshImg, cameraBGRA, CV_GRAY2BGRA);
-		cvtColor(colorImg, cameraBGRA, CV_BGR2BGRA);
-		ARUint8 *imgData = (ARUint8*)cameraBGRA.data;
-		cvtColor(colorImg, threshImg, CV_BGR2GRAY);
-		threshold(threshImg, threshImg, 128, 255, CV_THRESH_BINARY);
-		cv::imshow("camera", threshImg);
-		
-		//	ARマーカーを認識
-		ARMarkerInfo *markerInfo;
-		int markerNum, thresh = 128;
-		if (arDetectMarker(imgData, thresh, &markerInfo, &markerNum) < 0)
-		{
-			cerr << "Error: at arDetectMarker() function." << endl;
-			safeTerminate();
-			exit(-1);
-		}
-		int k = -1;
-		for (int j = 0; j < markerNum; j++)
-		{
-			if (marker.patt_id == markerInfo[j].id)
-			{	//	markerと最も一致度の高いIDを抽出
-				if (k == -1) k = j;
-				else if (markerInfo[k].cf < markerInfo[j].cf) k = j;
-			}
-		}
-		//	マーカー位置姿勢を取得
-		glm::mat4 markerTransMat;		//	最初は単位行列
-		if (k == -1) marker.visible = 0;
-		else
-		{	//	過去情報を利用してブレを抑える
-			if (marker.visible == 0)
-				arGetTransMat(&markerInfo[k], marker.patt_center, marker.patt_width, marker.patt_trans);
-			else
-				arGetTransMatCont(&markerInfo[k], marker.patt_trans, marker.patt_center, marker.patt_width, marker.patt_trans);
-			marker.visible = 1;
-			for (int i = 0; i < 3; i++){
-				for (int j = 0; j < 4; j++){
-					markerTransMat[j][i] = marker.patt_trans[i][j];
-				}
-			}
-			////	マーカー位置姿勢の加重平均をとる
-			prePose.insert(prePose.begin(), markerTransMat);	//	prePose[0]に挿入
-			prePose.pop_back();		//	-3フレーム目を削除
-			//	回転(expマップ上で加重平均)
-			//	クォータニオンの生成
-			glm::quat q[3] = {
-				glm::toQuat(prePose[0]),
-				glm::toQuat(prePose[1]),
-				glm::toQuat(prePose[2])
-			};
-			//	球面線形補間
-			glm::quat q_mean = glm::slerp(q[0], glm::slerp(q[1], q[2], 0.9f), 0.9f);		//	x(1-a)+ya
-			//	クォータニオンを回転行列に変換
-			glm::mat4 r_mean = glm::mat4_cast(q_mean);
-			//	閾値処理
-			static glm::quat q_mean_temp = q_mean;
-			//cout << abs(glm::dot(q_mean, q[1]) - glm::length(q_mean)) << endl;
-			if (abs(glm::dot(q_mean, q[1]) - glm::length(q_mean)) < threshR)
-				r_mean = glm::mat4_cast(q_mean_temp);
-			else
-				q_mean_temp = q[0];
-			//	平行移動ベクトルは単純に加重平均
-			glm::vec4 t_mean = glm::mix((prePose[0])[3], glm::mix((prePose[1])[3], (prePose[2])[3], weightA), weightV);
-			//	閾値処理
-			static glm::vec4 t_temp = t_mean;
-			//cout << glm::distance(t, prePose[1][3]) << endl;
-			if (glm::distance(t_mean, prePose[1][3]) < threshT)
-				t_mean = t_temp;
-			else
-				t_temp = t_mean;
-			//	並進・回転の合成
-			markerTransMat = glm::translate(glm::vec3(t_mean)) * r_mean;
-			//for (int i = 0; i < 4; i++){
-			//	for (int j = 0; j < 4; j++)
-			//		cout << markerTransMat[i][j] << ", ";
-			//	cout << ";\n";
-			//}
-		}
+		////	カメラ画像取得
+		//colorImg = flycap.readImage();
+		//flip(colorImg, colorImg, 1);
+		////	ARToolKitに2値化画像を転送
+		//Mat threshImg, cameraBGRA, temp;
+		////cv::cvtColor(colorImg, threshImg, CV_BGR2GRAY);
+		////cv::adaptiveThreshold(threshImg, threshImg, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 55, 10);
+		////cv::GaussianBlur(threshImg, threshImg, cv::Size(9, 9), 3.0);
+		////cv::cvtColor(threshImg, cameraBGRA, CV_GRAY2BGRA);
+		//cvtColor(colorImg, cameraBGRA, CV_BGR2BGRA);
+		//ARUint8 *imgData = (ARUint8*)cameraBGRA.data;
+		//cvtColor(colorImg, threshImg, CV_BGR2GRAY);
+		//threshold(threshImg, threshImg, 128, 255, CV_THRESH_BINARY);
+		//cv::imshow("camera", threshImg);
+		//
+		////	ARマーカーを認識
+		//ARMarkerInfo *markerInfo;
+		//int markerNum, thresh = 128;
+		//if (arDetectMarker(imgData, thresh, &markerInfo, &markerNum) < 0)
+		//{
+		//	cerr << "Error: at arDetectMarker() function." << endl;
+		//	safeTerminate();
+		//	exit(-1);
+		//}
+		//int k = -1;
+		//for (int j = 0; j < markerNum; j++)
+		//{
+		//	if (marker.patt_id == markerInfo[j].id)
+		//	{	//	markerと最も一致度の高いIDを抽出
+		//		if (k == -1) k = j;
+		//		else if (markerInfo[k].cf < markerInfo[j].cf) k = j;
+		//	}
+		//}
+		////	マーカー位置姿勢を取得
+		//glm::mat4 markerTransMat;		//	最初は単位行列
+		//if (k == -1) marker.visible = 0;
+		//else
+		//{	//	過去情報を利用してブレを抑える
+		//	if (marker.visible == 0)
+		//		arGetTransMat(&markerInfo[k], marker.patt_center, marker.patt_width, marker.patt_trans);
+		//	else
+		//		arGetTransMatCont(&markerInfo[k], marker.patt_trans, marker.patt_center, marker.patt_width, marker.patt_trans);
+		//	marker.visible = 1;
+		//	for (int i = 0; i < 3; i++){
+		//		for (int j = 0; j < 4; j++){
+		//			markerTransMat[j][i] = marker.patt_trans[i][j];
+		//		}
+		//	}
+		//	////	マーカー位置姿勢の加重平均をとる
+		//	prePose.insert(prePose.begin(), markerTransMat);	//	prePose[0]に挿入
+		//	prePose.pop_back();		//	-3フレーム目を削除
+		//	//	回転(expマップ上で加重平均)
+		//	//	クォータニオンの生成
+		//	glm::quat q[3] = {
+		//		glm::toQuat(prePose[0]),
+		//		glm::toQuat(prePose[1]),
+		//		glm::toQuat(prePose[2])
+		//	};
+		//	//	球面線形補間
+		//	glm::quat q_mean = glm::slerp(q[0], glm::slerp(q[1], q[2], 0.9f), 0.9f);		//	x(1-a)+ya
+		//	//	クォータニオンを回転行列に変換
+		//	glm::mat4 r_mean = glm::mat4_cast(q_mean);
+		//	//	閾値処理
+		//	static glm::quat q_mean_temp = q_mean;
+		//	//cout << abs(glm::dot(q_mean, q[1]) - glm::length(q_mean)) << endl;
+		//	if (abs(glm::dot(q_mean, q[1]) - glm::length(q_mean)) < threshR)
+		//		r_mean = glm::mat4_cast(q_mean_temp);
+		//	else
+		//		q_mean_temp = q[0];
+		//	//	平行移動ベクトルは単純に加重平均
+		//	glm::vec4 t_mean = glm::mix((prePose[0])[3], glm::mix((prePose[1])[3], (prePose[2])[3], weightA), weightV);
+		//	//	閾値処理
+		//	static glm::vec4 t_temp = t_mean;
+		//	//cout << glm::distance(t, prePose[1][3]) << endl;
+		//	if (glm::distance(t_mean, prePose[1][3]) < threshT)
+		//		t_mean = t_temp;
+		//	else
+		//		t_temp = t_mean;
+		//	//	並進・回転の合成
+		//	markerTransMat = glm::translate(glm::vec3(t_mean)) * r_mean;
+		//	//for (int i = 0; i < 4; i++){
+		//	//	for (int j = 0; j < 4; j++)
+		//	//		cout << markerTransMat[i][j] << ", ";
+		//	//	cout << ";\n";
+		//	//}
+		//}
 		
 		//------------------------------
 		//	Main Winodw
 		//------------------------------
 		glfwMakeContextCurrent(mainWindow);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		glImg.draw(colorImg);
+		
+		colorImg = flycap.readImage();
+		flip(colorImg, colorImg, 1);
+		Mat temp;
+		remap(colorImg, temp, mapC1, mapC2, INTER_LINEAR);
+		glImg.draw(temp);
+		glClear(GL_DEPTH_BUFFER_BIT);
 
 		//	プロジェクション行列
 		cameraFrustumRH(cameraMatrix, cameraSize, glmProjMat, 0.1, 5000);
@@ -588,11 +592,13 @@ int main(void)
 			//* glm::rotate(glm::radians(180.0f), glm::vec3(0.0, 0.0, 1.0))
 			//* glm::translate(glm::vec3(MARKER_SIZE / 2 + 11.0f + 150.0f, MARKER_SIZE / 2 + 11.0f, 105.6f));
 		glm::mat4 Model;  // 各モデルを変える！
+
+		glm::mat4 markerTransMat
+			= glm::mat4_cast(current)
+			* glm::translate(glm::vec3(objTx, objTy, objTz));
 		Model = glm::mat4(1.0f)
 			* marker2model
-			* markerTransMat
-			* glm::mat4_cast(current)
-			* glm::translate(glm::vec3(objTx, objTy, objTz));;
+			* markerTransMat;
 		
 		//	Render Object
 		//	Our ModelViewProjection : multiplication of our 3 matrices
@@ -618,22 +624,6 @@ int main(void)
 		// Our ModelViewProjection : multiplication of our 3 matrices
 		subRenderer.shader.enable();
 		
-		//ARParam projParam;
-		//projParam.xsize = 1024; projParam.ysize = 768;
-		//for (int i = 0; i < 4; i++)
-		//	projParam.dist_factor[i] = 0.0;
-		//for (int i = 0; i < 4; i++){
-		//	for (int j = 0; j < 3; j++)
-		//		projParam.mat[i][j] = projectorCameraMatrix[i][j];
-		//}
-		//double projmat[16];
-		//arglCameraFrustumRH(&projParam, 0.001, 10000.0, projmat);
-		//glm::mat4 glmProjMat;
-		//for (int i = 0; i < 4; i++){
-		//	for (int j = 0; j < 4; j++)
-		//		glmProjMat[i][j] = projmat[i + j * 4];
-		//}
-		
 		cameraFrustumRH(cameraMatrixProj, projSize, glmProjMat, 0.1, 5000);
 		Projection = glmProjMat;
 		//Projection = projectionMatfromCameraMatrix(projectorCameraMatrix, subWinW, subWinH, 0.1, 10000.0);
@@ -651,9 +641,7 @@ int main(void)
 		//	カメラを原点としたワールド座標系
 		Model = glm::mat4(1.0)
 			* marker2model
-			* markerTransMat
-			* glm::mat4_cast(current)
-			* glm::translate(glm::vec3(objTx, objTy, objTz));
+			* markerTransMat;
 
 		subRenderer.MV = View * Model;
 		subRenderer.MVP = Projection * View * Model;
@@ -851,8 +839,8 @@ void cursorPosEvent(GLFWwindow *window, double x, double y)
 		}
 		break;
 	case GLFW_MOUSE_BUTTON_MIDDLE:
-		objTx += dx * 100;
-		objTy += dy * 100;
+		objTx += dx * 300;
+		objTy += dy * 300;
 		break;
 	case GLFW_MOUSE_BUTTON_RIGHT:
 		break;
@@ -872,65 +860,6 @@ void safeTerminate()
 	glfwTerminate();
 }
 
-void arglCameraFrustumRH(ARParam *cparam, const double focalmin, const double focalmax, GLdouble m_projection[16])
-{
-	double   icpara[3][4];
-	double   trans[3][4];
-	double   p[3][3], q[4][4];
-	int      width, height;
-	int      i, j;
-
-	width = cparam->xsize;
-	height = cparam->ysize;
-
-	if (arParamDecompMat(cparam->mat, icpara, trans) < 0) {
-		printf("arglCameraFrustum(): arParamDecompMat() indicated parameter error.\n"); // Windows bug: when running multi-threaded, can't write to stderr!
-		return;
-	}
-	for (i = 0; i < 4; i++) {
-		icpara[1][i] = (height - 1)*(icpara[2][i]) - icpara[1][i];
-	}
-
-	for (i = 0; i < 3; i++) {
-		for (j = 0; j < 3; j++) {
-			p[i][j] = icpara[i][j] / icpara[2][2];
-		}
-	}
-	q[0][0] = (2.0 * p[0][0] / (width - 1));
-	q[0][1] = (2.0 * p[0][1] / (width - 1));
-	q[0][2] = -((2.0 * p[0][2] / (width - 1)) - 1.0);
-	q[0][3] = 0.0;
-
-	q[1][0] = 0.0;
-	q[1][1] = -(2.0 * p[1][1] / (height - 1));
-	q[1][2] = -((2.0 * p[1][2] / (height - 1)) - 1.0);
-	q[1][3] = 0.0;
-
-	q[2][0] = 0.0;
-	q[2][1] = 0.0;
-	q[2][2] = (focalmax + focalmin) / (focalmin - focalmax);
-	q[2][3] = 2.0 * focalmax * focalmin / (focalmin - focalmax);
-
-	q[3][0] = 0.0;
-	q[3][1] = 0.0;
-	q[3][2] = -1.0;
-	q[3][3] = 0.0;
-
-	for (i = 0; i < 4; i++) { // Row.
-		// First 3 columns of the current row.
-		for (j = 0; j < 3; j++) { // Column.
-			m_projection[i + j * 4] = q[i][0] * trans[0][j] +
-				q[i][1] * trans[1][j] +
-				q[i][2] * trans[2][j];
-		}
-		// Fourth column of the current row.
-		m_projection[i + 3 * 4] = q[i][0] * trans[0][3] +
-			q[i][1] * trans[1][3] +
-			q[i][2] * trans[2][3] +
-			q[i][3];
-	}
-}
-
 //	OpenCVカメラパラメータからOpenGL(GLM)プロジェクション行列を得る関数
 void cameraFrustumRH(Mat camMat, Size camSz, glm::mat4 &projMat, double znear, double zfar)
 {
@@ -939,11 +868,12 @@ void cameraFrustumRH(Mat camMat, Size camSz, glm::mat4 &projMat, double znear, d
 	double fy = camMat.at<double>(1, 1);
 	double cx = camMat.at<double>(0, 2);
 	double cy = camMat.at<double>(1, 2);
-
+	double w = camSz.width, h = camSz.height;
+/*
 	double fovY = 1.0 / (fy / camSz.height * 2);
 	double aspect = camSz.width / camSz.height * fx / fy;
 	double frustumH = znear * fovY;
-	double frustumW = frustumH * aspect;
+	double frustumW = frustumH / aspect;
 	double offsetX = (camSz.width / 2 - cx) / camSz.width * frustumW * 2;
 	double offsetY = (camSz.height / 2 - cy) / camSz.height * frustumH * 2;
 
@@ -951,6 +881,19 @@ void cameraFrustumRH(Mat camMat, Size camSz, glm::mat4 &projMat, double znear, d
 		-frustumW - offsetX, frustumW - offsetX,
 		-frustumH - offsetY, frustumH - offsetY, 
 		znear, zfar);
+	projMat = projection;*/
+
+	////	OpenCV3プログラミングブックより引用
+	//double f = fy / h;
+	//double fovy = abs(atan(h / 2.0 / fy)*2.0)*180.0 / CV_PI;
+	//double aspect = (w*f / fx) / (h*f / fy);
+	//glm::mat4 projection = glm::perspective(fovy, aspect, znear, zfar);
+
+	glm::mat4 projection(
+		-2.0 * fx / w, 0, 0, 0,
+		0, -2.0 * fy / h, 0, 0,
+		2.0 * cx / w - 1.0, 2.0 * cy / h - 1.0, -(zfar + znear) / (zfar - znear), -1.0,
+		0, 0, -2.0 * zfar * znear / (zfar - znear), 0);
 	projMat = projection;
 }
 

@@ -36,9 +36,6 @@
     <ClInclude Include="..\common\inc\Shader.h">
       <Filter>Common\Includes</Filter>
     </ClInclude>
-    <ClInclude Include="ARTKLinker.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
     <ClInclude Include="..\common\inc\FlyCap2CVWrapper.h">
       <Filter>Common\Includes</Filter>
     </ClInclude>

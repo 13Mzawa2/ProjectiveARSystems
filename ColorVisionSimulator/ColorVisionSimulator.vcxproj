@@ -36,13 +36,11 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\common\prop\Commons.props" />
-    <Import Project="useARToolKit.props" />
     <Import Project="..\common\prop\PointGrayCamera.props" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="..\common\prop\Commons.props" />
-    <Import Project="useARToolKit.props" />
     <Import Project="..\common\prop\PointGrayCamera.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
@@ -93,7 +91,6 @@
     <ClInclude Include="..\common\inc\objloader.hpp" />
     <ClInclude Include="..\common\inc\OpenGLHeader.h" />
     <ClInclude Include="..\common\inc\Shader.h" />
-    <ClInclude Include="ARTKLinker.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\common\src\FlyCap2CVWrapper.cpp" />
