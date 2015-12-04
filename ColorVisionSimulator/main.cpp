@@ -13,8 +13,8 @@ using namespace std;
 //-----------------------------------------------------
 const char vertexDir[] = "./shader/vertex.glsl";
 const char fragmentDir[] = "./shader/fragment.glsl";
-const char objDir[] = "../common/data/model/ARbox/ARbox.obj";
-const char textureDir[] = "../common/data/model/ARbox/textures/txt_001_diff.bmp";
+const char objDir[] = "../common/data/model/CalibBox/CalibBox.obj";
+const char textureDir[] = "../common/data/model/CalibBox/textures/txt_001_diff.bmp";
 //const char lutDir[] = "../common/data/lut/LUT_dichromat_typeP.png";
 const char *lutDir[5] = {
 	"../common/data/lut/LUT_dichromat_typeP.png",
@@ -67,6 +67,7 @@ GLFWwindow	*mainWindow, *subWindow;		//	マルチウィンドウ
 int subWinW, subWinH;
 //static float objTx = 85.9375, objTy = 588.54609, objTz = -40.4250069;
 static float objTx = 0, objTy = 0, objTz = 0;
+static glm::vec3 projT(0.0, 0.0, 0.0);
 //static glm::quat current = glm::quat(-0.3691, 0.00095, 0.00852, -0.9293);
 static glm::quat current = glm::quat(1.0, 0.0, 0.0, 0.0);
 //	履歴データ 0が最も新しい 過去2フレームを使用
@@ -225,6 +226,7 @@ void scrollEvent(GLFWwindow *window, double xofset, double yofset);
 void safeTerminate();
 void cameraFrustumRH(Mat cameraMatrix, Size cameraSize, glm::mat4 &projMatrix, double znear, double zfar);
 void composeRT(Mat R, Mat T, glm::mat4 &RT);
+void showMatrix(glm::mat4 &m);
 
 int initWindow(void)
 {
@@ -351,6 +353,9 @@ void initCamera(void)
 	ProCam["T"] >> TProCam;
 
 	cameraFrustumRH(cameraMatrix, cameraSize, glmProjMat, 0.1, 5000);
+	TProCam.at<double>(0) = 21.4989;
+	TProCam.at<double>(1) = 1.98882; 
+	TProCam.at<double>(2) = 76.1548;
 	composeRT(RProCam, TProCam, glmTransProCam);
 	//	Undistort Map
 	initUndistortRectifyMap(
@@ -415,62 +420,6 @@ int main(void)
 		&& glfwGetKey(subWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS
 		&& !glfwWindowShouldClose(mainWindow))							//	ウィンドウの閉じるボタン
 	{
-		//------------------------------
-		//	Key Events
-		//------------------------------
-		static bool keyHolding = false;
-		int c = glfwGetKey(subWindow, GLFW_KEY_SPACE);
-		if (keyHolding || c == GLFW_PRESS)
-		{
-			if (keyHolding && c == GLFW_RELEASE)
-			{
-				mainRenderer.useLUT = !mainRenderer.useLUT;
-				subRenderer.useLUT = !subRenderer.useLUT;
-				keyHolding = false;
-			}
-			else
-				keyHolding = true;
-		}
-		if (glfwGetKey(subWindow, GLFW_KEY_D) == GLFW_PRESS)
-		{
-			cout << "T = [" << objTx << "," << objTy << "," << objTz << "]\n";
-			cout << "Q = [" << current.w << "," << current.x << "," << current.y << "," << current.z << "]\n";
-		}
-		if (glfwGetKey(subWindow, GLFW_KEY_1) == GLFW_PRESS)
-		{
-			lutMat = imread(lutDir[0]);
-			updateLUT(mainRenderer, lutMat);
-			updateLUT(subRenderer, lutMat);
-			cout << "Loaded: " << lutDir[0] << endl;
-		}
-		if (glfwGetKey(subWindow, GLFW_KEY_2) == GLFW_PRESS)
-		{
-			lutMat = imread(lutDir[1]);
-			updateLUT(mainRenderer, lutMat);
-			updateLUT(subRenderer, lutMat);
-			cout << "Loaded: " << lutDir[1] << endl;
-		}
-		if (glfwGetKey(subWindow, GLFW_KEY_3) == GLFW_PRESS)
-		{
-			lutMat = imread(lutDir[2]);
-			updateLUT(mainRenderer, lutMat);
-			updateLUT(subRenderer, lutMat);
-			cout << "Loaded: " << lutDir[2] << endl;
-		}
-		if (glfwGetKey(subWindow, GLFW_KEY_4) == GLFW_PRESS)
-		{
-			lutMat = imread(lutDir[3]);
-			updateLUT(mainRenderer, lutMat);
-			updateLUT(subRenderer, lutMat);
-			cout << "Loaded: " << lutDir[3] << endl;
-		}
-		if (glfwGetKey(subWindow, GLFW_KEY_5) == GLFW_PRESS)
-		{
-			lutMat = imread(lutDir[4]);
-			updateLUT(mainRenderer, lutMat);
-			updateLUT(subRenderer, lutMat);
-			cout << "Loaded: " << lutDir[4] << endl;
-		}
 
 		//------------------------------
 		//	Get AR Marker Transform
@@ -635,6 +584,7 @@ int main(void)
 			glm::vec3(0, 1, 0)  // カメラの上方向
 			)
 			* glmTransProCam
+			* glm::translate(projT)		//	キャリブレーションの手動修正
 			;
 			//* projectorPose;
 
@@ -652,8 +602,92 @@ int main(void)
 
 		// Swap buffers
 		glfwSwapBuffers(subWindow);
-		glfwPollEvents();
 
+		//------------------------------
+		//	Key Events
+		//------------------------------
+
+		if (glfwGetKey(subWindow, GLFW_KEY_D) == GLFW_PRESS)
+		{
+			cout << "T = [" << objTx << "," << objTy << "," << objTz << "]\n";
+			cout << "Q = [" << current.w << "," << current.x << "," << current.y << "," << current.z << "]\n";
+		}
+
+		if (glfwGetKey(subWindow, GLFW_KEY_P) == GLFW_PRESS)
+		{
+			showMatrix(glmTransProCam
+				* glm::translate(projT));
+		}
+		if (glfwGetKey(subWindow, GLFW_KEY_I) == GLFW_PRESS)
+		{
+			if (glfwGetKey(subWindow, GLFW_KEY_X) == GLFW_PRESS)
+				projT[0] += 0.1;
+			if (glfwGetKey(subWindow, GLFW_KEY_Y) == GLFW_PRESS)
+				projT[1] += 0.1;
+			if (glfwGetKey(subWindow, GLFW_KEY_Z) == GLFW_PRESS)
+				projT[2] += 0.1;
+		}
+		else
+		{
+			if (glfwGetKey(subWindow, GLFW_KEY_X) == GLFW_PRESS)
+				projT[0] -= 0.1;
+			if (glfwGetKey(subWindow, GLFW_KEY_Y) == GLFW_PRESS)
+				projT[1] -= 0.1;
+			if (glfwGetKey(subWindow, GLFW_KEY_Z) == GLFW_PRESS)
+				projT[2] -= 0.1;
+		}
+
+		//	Change LUT
+		static bool keyHolding = false;
+		int c = glfwGetKey(subWindow, GLFW_KEY_SPACE);
+		if (keyHolding || c == GLFW_PRESS)
+		{
+			if (keyHolding && c == GLFW_RELEASE)
+			{
+				mainRenderer.useLUT = !mainRenderer.useLUT;
+				subRenderer.useLUT = !subRenderer.useLUT;
+				keyHolding = false;
+			}
+			else
+				keyHolding = true;
+		}
+		if (glfwGetKey(subWindow, GLFW_KEY_1) == GLFW_PRESS)
+		{
+			lutMat = imread(lutDir[0]);
+			updateLUT(mainRenderer, lutMat);
+			updateLUT(subRenderer, lutMat);
+			cout << "Loaded: " << lutDir[0] << endl;
+		}
+		if (glfwGetKey(subWindow, GLFW_KEY_2) == GLFW_PRESS)
+		{
+			lutMat = imread(lutDir[1]);
+			updateLUT(mainRenderer, lutMat);
+			updateLUT(subRenderer, lutMat);
+			cout << "Loaded: " << lutDir[1] << endl;
+		}
+		if (glfwGetKey(subWindow, GLFW_KEY_3) == GLFW_PRESS)
+		{
+			lutMat = imread(lutDir[2]);
+			updateLUT(mainRenderer, lutMat);
+			updateLUT(subRenderer, lutMat);
+			cout << "Loaded: " << lutDir[2] << endl;
+		}
+		if (glfwGetKey(subWindow, GLFW_KEY_4) == GLFW_PRESS)
+		{
+			lutMat = imread(lutDir[3]);
+			updateLUT(mainRenderer, lutMat);
+			updateLUT(subRenderer, lutMat);
+			cout << "Loaded: " << lutDir[3] << endl;
+		}
+		if (glfwGetKey(subWindow, GLFW_KEY_5) == GLFW_PRESS)
+		{
+			lutMat = imread(lutDir[4]);
+			updateLUT(mainRenderer, lutMat);
+			updateLUT(subRenderer, lutMat);
+			cout << "Loaded: " << lutDir[4] << endl;
+		}
+
+		glfwPollEvents();
 	}
 	safeTerminate();
 
@@ -907,4 +941,20 @@ void composeRT(Mat R, Mat T, glm::mat4 &RT)
 		trans[3][i] = T.at<double>(i);
 	}
 	RT = trans;
+}
+
+
+void showMatrix(glm::mat4 &m)
+{
+	cout << "[";
+	for (int i = 0; i < 3; i++){
+		for (int j = 0; j < 4; j++){
+			cout << m[j][i] << "\t";
+		}
+		cout << "\n ";
+	}
+	for (int j = 0; j < 4; j++){
+		cout << m[j][3] << "\t";
+	}
+	cout << "]";
 }
