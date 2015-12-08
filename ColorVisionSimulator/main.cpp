@@ -5,6 +5,7 @@
 #include "OpenGLHeader.h"
 #include "Shader.h"
 #include "GLImage.h"
+#include <omp.h>
 
 using namespace cv;
 using namespace std;
@@ -295,19 +296,130 @@ int main(void)
 	GLImage glImg;
 	glImg.init(mainWindow);
 
+	//	特徴点画像の読込
+	Mat featureImg = imread(featureImgDir);
+	resize(featureImg, featureImg, featureImg.size() / 2);
+	vector<KeyPoint> keypoint1, keypoint2;
+	Mat descriptor1, descriptor2;		//	特徴情報格納のための変数
+	auto algorithm = cv::BRISK::create();		//	AKAZEアルゴリズムを使用
+	algorithm->detect(featureImg, keypoint1);	//	特徴点抽出
+	algorithm->compute(featureImg, keypoint1, descriptor1);		//	特徴量記述
+
+
+	//	タイマーのセッティング
+	double currentTime = 0.0, processTime = 0.0;
 
 	//	メインループ
 	while (glfwGetKey(mainWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS		//	Escキー
 		&& glfwGetKey(subWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS
 		&& !glfwWindowShouldClose(mainWindow))							//	ウィンドウの閉じるボタン
 	{
+		//	時間計測開始
+		currentTime = glfwGetTime();
 
 		//------------------------------
 		//	画像処理
 		//------------------------------
 		colorImg = flycap.readImage();
 		flip(colorImg, colorImg, 1);
-		
+		Mat temp = colorImg.clone();
+		remap(colorImg, temp, mapC1, mapC2, INTER_LINEAR);
+
+		//Size patternsize(7, 10); // 内部にあるコーナーの個数
+		//Mat gray = temp; // 入力画像
+		//vector<Point2f> corners; // 検出されたコーナーがここに入ります
+
+		//bool patternfound = findChessboardCorners(gray, patternsize, corners,
+		//	CALIB_CB_ADAPTIVE_THRESH + CALIB_CB_NORMALIZE_IMAGE
+		//	+ CALIB_CB_FAST_CHECK);
+		//Mat dst = temp.clone();
+		//drawChessboardCorners(dst, patternsize, Mat(corners), patternfound);
+		//imshow("dest", dst);
+
+		//Mat clip(temp, Rect(180, 50, 580, 430));
+		//	特徴量検出
+		algorithm->detect(temp, keypoint2);
+		algorithm->compute(temp, keypoint2, descriptor2);
+		//	マッチング
+		auto matcher = cv::DescriptorMatcher::create("BruteForce-Hamming");
+		vector<DMatch> match, match12, match21;
+		matcher->match(descriptor1, descriptor2, match12);
+		matcher->match(descriptor2, descriptor1, match21);
+		//クロスチェック(1→2と2→1の両方でマッチしたものだけを残して精度を高める)
+		for (size_t i = 0; i < match12.size(); i++)
+		{
+			cv::DMatch forward = match12[i];
+			cv::DMatch backward = match21[forward.trainIdx];
+			if (backward.trainIdx == forward.queryIdx)
+			{
+				match.push_back(forward);
+			}
+		}
+		//	最小距離minDistの更新
+		double minDist = 1000.0;
+		for (int i = 0; i < match.size(); i++)
+		{
+			double dist = match[i].distance;
+			if (dist < minDist) minDist = dist;
+		}
+		//	良いペア（最小距離の3倍）のみ残す
+		vector<DMatch> good_match;
+		for (int i = 0; i < match.size(); i++)
+		{
+			if (match[i].distance < 2.4 * minDist)
+				good_match.push_back(match[i]);
+		}
+		//	充分な対応点がある場合矩形を描画
+		cv::Mat dest = temp.clone();
+		cv::drawMatches(featureImg, keypoint1, temp, keypoint2, good_match, dest, cv::Scalar::all(-1), cv::Scalar::all(-1), std::vector<char>(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+		static glm::mat4 markerPose(1);
+		if (good_match.size() > 12)
+		{
+			vector<Point2d> obj, scene;
+			for (int i = 0; i < good_match.size(); i++)
+			{
+				obj.push_back(keypoint1[good_match[i].queryIdx].pt);
+				scene.push_back(keypoint2[good_match[i].trainIdx].pt);
+			}
+			Mat H = findHomography(obj, scene, RANSAC, 1.5);
+			if (!H.empty())
+			{
+				vector<Point2d> objCorners2(4), sceneCorners2(4);					//	画像座標系での画像矩形座標
+				objCorners2[0] = Point2d(0.0, 0.0);
+				objCorners2[1] = Point2d(0.0, featureImg.rows);
+				objCorners2[2] = Point2d(featureImg.cols, featureImg.rows);
+				objCorners2[3] = Point2d(featureImg.cols, 0.0);
+				//	ホモグラフィ変換
+				perspectiveTransform(objCorners2, sceneCorners2, H);
+				//	矩形の描画
+				cv::line(dest, 
+					sceneCorners2[0] + cv::Point2d(featureImg.cols, 0),
+					sceneCorners2[1] + cv::Point2d(featureImg.cols, 0),
+					cv::Scalar(255, 0, 255), 2, CV_AA);
+				cv::line(dest,
+					sceneCorners2[1] + cv::Point2d(featureImg.cols, 0),
+					sceneCorners2[2] + cv::Point2d(featureImg.cols, 0),
+					cv::Scalar(255, 0, 255), 2, CV_AA);
+				cv::line(dest,
+					sceneCorners2[2] + cv::Point2d(featureImg.cols, 0),
+					sceneCorners2[3] + cv::Point2d(featureImg.cols, 0),
+					cv::Scalar(255, 0, 255), 2, CV_AA);
+				cv::line(dest,
+					sceneCorners2[3] + cv::Point2d(featureImg.cols, 0),
+					sceneCorners2[0] + cv::Point2d(featureImg.cols, 0),
+					cv::Scalar(255, 0, 255), 2, CV_AA);
+
+				vector<Point3d> objCorners3(4);
+				for (int i = 0; i < 4; i++)
+					objCorners3[i] = Point3d(objCorners2[i].x, objCorners2[i].x, 0.0);
+				static Mat rvec, rmat, tvec;
+				solvePnP(objCorners3, sceneCorners2, cameraMatrix, Mat(), rvec, tvec, false);
+				Rodrigues(rvec, rmat);
+				composeRT(rmat, tvec, markerPose);
+			}
+		}
+		//	結果の描画
+		imshow("match", dest);
 
 		//------------------------------
 		//	Get AR Marker Transform
@@ -405,8 +517,6 @@ int main(void)
 		glfwMakeContextCurrent(mainWindow);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
-		Mat temp;
-		remap(colorImg, temp, mapC1, mapC2, INTER_LINEAR);
 		glImg.draw(temp);
 		glClear(GL_DEPTH_BUFFER_BIT);
 
@@ -428,9 +538,11 @@ int main(void)
 			//* glm::translate(glm::vec3(MARKER_SIZE / 2 + 11.0f + 150.0f, MARKER_SIZE / 2 + 11.0f, 105.6f));
 		glm::mat4 Model;  // 各モデルを変える！
 
-		glm::mat4 markerTransMat
-			= glm::mat4_cast(current)
-			* glm::translate(glm::vec3(objTx, objTy, objTz));
+		glm::mat4 markerTransMat = glm::mat4(1.0f)
+			* markerPose
+			* glm::mat4_cast(current)
+			* glm::translate(glm::vec3(objTx, objTy, objTz))
+			;
 		Model = glm::mat4(1.0f)
 			* marker2model
 			* markerTransMat;
@@ -578,6 +690,11 @@ int main(void)
 			cout << "Loaded: " << lutDir[4] << endl;
 		}
 
+		//	タイマ計測
+		processTime = glfwGetTime() - currentTime;
+		cout << "FPS : " << 1.0 / processTime << "\r";
+
+		//	イベント待ち
 		glfwPollEvents();
 	}
 	safeTerminate();
