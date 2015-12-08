@@ -1,9 +1,10 @@
 ﻿
 #include <iostream>
-#include "Shader.h"
 #include "objloader.hpp"
 #include "FlyCap2CVWrapper.h"
 #include "OpenGLHeader.h"
+#include "Shader.h"
+#include "GLImage.h"
 
 using namespace cv;
 using namespace std;
@@ -24,27 +25,7 @@ const char *lutDir[5] = {
 	"../common/data/lut/LUT_elder_80.png"
 };
 const char calibDir[] = "./data/calibdata.xml";
-
-////-----------------------------------------------------
-////	Constants
-////-----------------------------------------------------
-////	RoomAliveToolkitでの測定結果
-////	KinectのRGBカメラパラメータ
-//glm::mat3 colorCameraMatrix(
-//	1088.5942262014253, 0, 0,
-//	0, 1088.4801711642506, 0,
-//	987.9108474275381, 527.64605393047646, 1);
-//double colorLensDistortion[4] = {
-//	0.04229, -0.05348, -0.00024, 0.00335 };
-//glm::mat3 projectorCameraMatrix(
-//	2898.8350799438763, 0, 0,
-//	0, 2898.8350799438763, 0,
-//	768.59447467126, 273.6576771850149, 1);
-//glm::mat4 projectorPose(
-//	0.988940417766571, 0.066547796130180359, -0.13254536688327789, 0,
-//	-0.011403728276491165, 0.92515689134597778, 0.37941363453865051, 0,
-//	0.14787440001964569, -0.37370595335960388, 0.915683925151825, 0,
-//	-70.988007578053944, 606.12622324461007, -999.45766623241938, 1);
+const char featureImgDir[] = "./data/hakodate.jpg";
 
 
 //-----------------------------------------------------
@@ -117,89 +98,6 @@ typedef struct Renderer
 	bool useLUT = false;
 };
 
-class GLImage
-{
-private:
-	GLuint vao;		//	頂点配列オブジェクト
-	GLuint vbo;		//	頂点バッファオブジェクト
-	GLuint image;	//	テクスチャオブジェクト
-	GLuint imageLoc;
-	Shader s;
-	int vertices;
-public:
-	GLImage()
-	{
-	}
-	void init(Size sz)
-	{
-		glfwMakeContextCurrent(mainWindow);
-		// 頂点配列オブジェクト
-		glGenVertexArrays(1, &vao);
-		glBindVertexArray(vao);
-
-		// 頂点バッファオブジェクト
-		glGenBuffers(1, &vbo);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-
-		// [-1, 1] の正方形
-		static const GLfloat position[][2] =
-		{
-			{ -1.0f, -1.0f },
-			{ 1.0f, -1.0f },
-			{ 1.0f, 1.0f },
-			{ -1.0f, 1.0f }
-		};
-		vertices = sizeof(position) / sizeof (position[0]);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(position), position, GL_STATIC_DRAW);
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, 0);
-		glEnableVertexAttribArray(0);
-
-		//	テクスチャ
-		glGenTextures(1, &image);
-		glBindTexture(GL_TEXTURE_RECTANGLE, image);
-		glTexImage2D(GL_TEXTURE_RECTANGLE, 0, GL_RGB, sz.width, sz.height, 0, GL_BGR, GL_UNSIGNED_BYTE, NULL);
-		glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-		glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-
-		//	シェーダのロード
-		s.initGLSL("./shader/vertex_drawpix.glsl", "./shader/fragment_drawpix.glsl");
-		imageLoc = glGetUniformLocation(s.program, "image");
-	}
-	void draw(Mat frame)
-	{
-		glfwMakeContextCurrent(mainWindow);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		// 切り出した画像をテクスチャに転送する
-		flip(frame, frame, 0);
-		glBindTexture(GL_TEXTURE_RECTANGLE, image);
-		glTexSubImage2D(GL_TEXTURE_RECTANGLE, 0, 0, 0, frame.cols, frame.rows, GL_BGR, GL_UNSIGNED_BYTE, frame.data);
-
-		// シェーダプログラムの使用開始
-		s.enable();
-
-		// uniform サンプラの指定
-		glUniform1i(imageLoc, 0);
-
-		// テクスチャユニットとテクスチャの指定
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_RECTANGLE, image);
-
-		// 描画に使う頂点配列オブジェクトの指定
-		glBindVertexArray(vao);
-
-		// 図形の描画
-		glDrawArrays(GL_TRIANGLE_FAN, 0, vertices);
-
-		// 頂点配列オブジェクトの指定解除
-		glBindVertexArray(0);
-
-		// シェーダプログラムの使用終了
-		s.disable();
-	}
-};
 
 Renderer mainRenderer, subRenderer;
 Mat	texImg;
@@ -353,9 +251,9 @@ void initCamera(void)
 	ProCam["T"] >> TProCam;
 
 	cameraFrustumRH(cameraMatrix, cameraSize, glmProjMat, 0.1, 5000);
-	TProCam.at<double>(0) = 21.4989;
-	TProCam.at<double>(1) = 1.98882; 
-	TProCam.at<double>(2) = 76.1548;
+	//TProCam.at<double>(0) = 21.4989;
+	//TProCam.at<double>(1) = 1.98882; 
+	//TProCam.at<double>(2) = 76.1548;
 	composeRT(RProCam, TProCam, glmTransProCam);
 	//	Undistort Map
 	initUndistortRectifyMap(
@@ -395,31 +293,21 @@ int main(void)
 	initSubWindow();
 	cout << "\n画像描画の設定" << endl;
 	GLImage glImg;
-	glImg.init(cameraSize);
+	glImg.init(mainWindow);
 
-	////	白色を描画
-	//glfwMakeContextCurrent(subWindow);
-	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//glfwSwapBuffers(subWindow);
 
-	//while (glfwGetKey(mainWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS		//	Escキー
-	//	&& glfwGetKey(subWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS)
-	//{
-	//	colorImg = flycap.readImage();
-	//	Mat temp;
-	//	cv::flip(colorImg, temp, 1);
-
-	//	glImg.draw(temp);
-	//	//	描画結果を反映
-	//	glfwSwapBuffers(mainWindow);
-
-	//	glfwPollEvents();
-	//}
 	//	メインループ
 	while (glfwGetKey(mainWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS		//	Escキー
 		&& glfwGetKey(subWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS
 		&& !glfwWindowShouldClose(mainWindow))							//	ウィンドウの閉じるボタン
 	{
+
+		//------------------------------
+		//	画像処理
+		//------------------------------
+		colorImg = flycap.readImage();
+		flip(colorImg, colorImg, 1);
+		
 
 		//------------------------------
 		//	Get AR Marker Transform
@@ -517,8 +405,6 @@ int main(void)
 		glfwMakeContextCurrent(mainWindow);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
-		colorImg = flycap.readImage();
-		flip(colorImg, colorImg, 1);
 		Mat temp;
 		remap(colorImg, temp, mapC1, mapC2, INTER_LINEAR);
 		glImg.draw(temp);
@@ -558,7 +444,8 @@ int main(void)
 		mainRenderer.lightColor = glm::vec3(1.0, 1.0, 1.0);
 		
 		//	Execute Rendering
-		renderObject(mainRenderer);
+		static bool showModel = true;
+		if (showModel)	renderObject(mainRenderer);
 
 		//	描画結果を反映
 		glfwSwapBuffers(mainWindow);
@@ -635,6 +522,10 @@ int main(void)
 				projT[1] -= 0.1;
 			if (glfwGetKey(subWindow, GLFW_KEY_Z) == GLFW_PRESS)
 				projT[2] -= 0.1;
+		}
+		if (glfwGetKey(subWindow, GLFW_KEY_M) == GLFW_PRESS)
+		{
+			showModel = !showModel;
 		}
 
 		//	Change LUT
@@ -820,22 +711,6 @@ void renderObject(Renderer &r)
 	glBindTexture(GL_TEXTURE_3D, 0);
 }
 
-//	Camera MatrixからOpenGLの透視投影行列を作成
-glm::mat4 projectionMatfromCameraMatrix(glm::mat3 cameraMat, int winW, int winH, double znear, double zfar)
-{
-	//	Load camera parameters
-	float fx = cameraMat[0][0];
-	float fy = cameraMat[1][1];
-	float cx = cameraMat[2][0];
-	float cy = cameraMat[2][1];
-	glm::mat4 projection(
-		-2.0 * fx / winW, 0, 0, 0,
-		0, -2.0 * fy / winH, 0, 0,
-		2.0 * cx / winW - 1.0, 2.0 * cy / winH - 1.0, -(zfar + znear) / (zfar - znear), -1.0,
-		0, 0, -2.0 * zfar * znear / (zfar - znear), 0);
-	return projection;
-}
-
 void mouseEvent(GLFWwindow *window, int button, int state, int optionkey)
 {
 	if (state == GLFW_PRESS)
@@ -956,5 +831,5 @@ void showMatrix(glm::mat4 &m)
 	for (int j = 0; j < 4; j++){
 		cout << m[j][3] << "\t";
 	}
-	cout << "]";
+	cout << "]" << endl;
 }

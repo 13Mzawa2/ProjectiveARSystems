@@ -91,6 +91,7 @@
     <ClInclude Include="..\common\inc\objloader.hpp" />
     <ClInclude Include="..\common\inc\OpenGLHeader.h" />
     <ClInclude Include="..\common\inc\Shader.h" />
+    <ClInclude Include="GLImage.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\common\src\FlyCap2CVWrapper.cpp" />
