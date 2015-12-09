@@ -1,5 +1,5 @@
 //	OpenGL/GLSL‚ð—˜—p‚µ‚½‰æ‘œ•`‰æ
-
+#pragma once
 
 #include "OpenGLHeader.h"
 #include "Shader.h"

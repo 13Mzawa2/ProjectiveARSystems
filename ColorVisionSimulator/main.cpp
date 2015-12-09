@@ -1,10 +1,29 @@
 ﻿
+#pragma region Disable Warning C4996
+//
+// Disable Warning C4996
+//
+#ifndef _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES
+#define _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES 1
+#endif
+#ifndef _CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES
+#define _CRT_SECURE_CPP_OVERLOAD_SECURE_NAMES 1
+#endif
+#ifndef _CRT_SECURE_NO_WARNINGS
+#define _CRT_SECURE_NO_WARNINGS 1
+#endif
+#pragma endregion
+
 #include <iostream>
 #include "objloader.hpp"
 #include "FlyCap2CVWrapper.h"
 #include "OpenGLHeader.h"
 #include "Shader.h"
 #include "GLImage.h"
+#include "OpenCVCamera.h"
+
+#include <ARToolKitPlus\TrackerSingleMarkerImpl.h>
+#pragma comment(lib, "ARToolKitPlus.lib")
 
 using namespace cv;
 using namespace std;
@@ -25,8 +44,7 @@ const char *lutDir[5] = {
 	"../common/data/lut/LUT_elder_80.png"
 };
 const char calibDir[] = "./data/calibdata.xml";
-const char featureImgDir[] = "./data/hakodate.jpg";
-
+const char calibARDir[] = "./data/calib_artkp.dat";
 
 //-----------------------------------------------------
 //	for Calibration Data
@@ -38,6 +56,7 @@ Mat cameraMatrix, distCoeffs, cameraMatrixProj, distCoeffsProj, RProCam, TProCam
 Size cameraSize, projSize;
 glm::mat4 glmProjMat, glmTransProCam;
 Mat mapC1, mapC2;
+ARToolKitPlus::TrackerSingleMarker *tracker;
 
 //-----------------------------------------------------
 //	GLFW User Interface
@@ -60,6 +79,7 @@ static double threshR = 1.0e-6, threshT = 0.5;		//	物体が止まっている�
 
 double xBegin, yBegin;
 int pressedMouseButton = 0;
+bool visible = false;
 
 //-----------------------------------------------------
 //	OpenGL / GLSL Rendering Engine
@@ -125,6 +145,7 @@ void safeTerminate();
 void cameraFrustumRH(Mat cameraMatrix, Size cameraSize, glm::mat4 &projMatrix, double znear, double zfar);
 void composeRT(Mat R, Mat T, glm::mat4 &RT);
 void showMatrix(glm::mat4 &m);
+
 
 int initWindow(void)
 {
@@ -260,6 +281,8 @@ void initCamera(void)
 		cameraMatrix, distCoeffs,
 		Mat(), cameraMatrix, cameraSize, CV_32FC1,
 		mapC1, mapC2);
+
+
 }
 
 int main(void)
@@ -296,19 +319,89 @@ int main(void)
 	glImg.init(mainWindow);
 
 
+	//	ARToolKitPlusの初期化
+	ARToolKitPlus::Camera *param = OpenCVCamera::fromOpenCV(cameraMatrix, distCoeffs, cameraSize);
+
+	ARToolKitPlus::Logger *logger = nullptr;
+	tracker = new ARToolKitPlus::TrackerSingleMarkerImpl<6, 6, 6, 1, 8>(cameraSize.width, cameraSize.height);
+	//tracker->init("data/LogitechPro4000.dat", 0.1f, 5000.0f);	
+	tracker->init(NULL, 0.1f, 5000.0f);	//	ファイルは使用しない
+	tracker->setCamera(param);
+	//tracker->changeCameraSize(cameraSize.width, cameraSize.height);
+	tracker->activateAutoThreshold(true);
+	tracker->setNumAutoThresholdRetries(3);
+	tracker->setBorderWidth(0.125f);			//	BCH boader width = 12.5%
+	tracker->setPatternWidth(60.0f);			//	marker physical width = 60.0mm
+	tracker->setPixelFormat(ARToolKitPlus::PIXEL_FORMAT_BGR);		//	With OpenCV
+	tracker->setUndistortionMode(ARToolKitPlus::UNDIST_NONE);		//	UndistortionはOpenCV側で行う
+	tracker->setMarkerMode(ARToolKitPlus::MARKER_ID_BCH);
+	tracker->setPoseEstimator(ARToolKitPlus::POSE_ESTIMATOR_RPP);
+
+	//ARToolKitPlus::Camera *pm = tracker->getCamera();
+	////tracker->setCamera(pm);
+
+	//for (int i = 0; i < 3; i++){
+	//	for (int j = 0; j < 4; j++)
+	//		std::cout << pm->mat[i][j] << " ";
+	//	std::cout << "\n";
+	//}
+	//cout << endl;
+	//for (int i = 0; i < 4; i++)
+	//	std::cout << pm->dist_factor[i] << " ";
+	//std::cout << std::endl;
+	//cout << "(" << pm->xsize << ", " << pm->ysize << ")" << endl;
+
+	//--------------------
+	//	タイマー設定
+	//--------------------
+	double currentTime = 0.0, processTime = 0.0;
+	glfwSetTime(0.0);
+
 	//	メインループ
-	while (glfwGetKey(mainWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS		//	Escキー
-		&& glfwGetKey(subWindow, GLFW_KEY_ESCAPE) != GLFW_PRESS
-		&& !glfwWindowShouldClose(mainWindow))							//	ウィンドウの閉じるボタン
+	while (1)							
 	{
+		//------------------------------
+		//	タイマー計測開始
+		//------------------------------
+		currentTime = glfwGetTime();
+
 
 		//------------------------------
 		//	画像処理
 		//------------------------------
 		colorImg = flycap.readImage();
 		flip(colorImg, colorImg, 1);
-		
+		Mat temp;
+		remap(colorImg, temp, mapC1, mapC2, INTER_LINEAR);
 
+		//	カメラからマーカーまで
+		static glm::mat4 markerTransMat = glm::mat4(1.0f); 
+		ARToolKitPlus::ARMarkerInfo *markers;
+		int markerID = tracker->calc(temp.data, -1, true, &markers);
+		float conf = (float)tracker->getConfidence();		//	信頼度
+		if (markerID == 4)
+		{
+			visible = true;
+			//	コーナー点を描画
+			Point center(markers->pos[0], markers->pos[1]); 
+			for (int j = 0; j < 4; j++) {
+				Point p(markers->vertex[j][0], markers->vertex[j][1]);
+				circle(colorImg, p, 6, Scalar(255, 0, 255));
+			}
+
+			markerTransMat = glm::make_mat4(tracker->getModelViewMatrix())
+				* glm::mat4_cast(current)
+				* glm::translate(glm::vec3(objTx, objTy, objTz))
+				;
+
+			//cout << "confidence: " << conf << " ";
+			//cout << "detected!";
+			//showMatrix(markerTransMat);
+		}
+		else
+		{
+			visible = false;
+		}
 		//------------------------------
 		//	Get AR Marker Transform
 		//------------------------------
@@ -405,35 +498,33 @@ int main(void)
 		glfwMakeContextCurrent(mainWindow);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		
-		Mat temp;
-		remap(colorImg, temp, mapC1, mapC2, INTER_LINEAR);
 		glImg.draw(temp);
 		glClear(GL_DEPTH_BUFFER_BIT);
 
 		//	プロジェクション行列
 		cameraFrustumRH(cameraMatrix, cameraSize, glmProjMat, 0.1, 5000);
-		glm::mat4 Projection = glmProjMat;
+		glm::mat4 Projection;
+		//Projection = glm::make_mat4(tracker->getProjectionMatrix());
+		Projection = glmProjMat;
 		// カメラ行列
 		glm::mat4 View = glm::mat4(1.0)
 			* glm::lookAt(
 			glm::vec3(0, 0, 0), // カメラの原点
 			glm::vec3(0, 0, 1), // 見ている点
 			glm::vec3(0, 1, 0)  // カメラの上方向
-			);
-		// モデル行列：単位行列(モデルは原点にあります。)
-		glm::mat4 marker2model = glm::mat4(1.0)
-			* glm::scale(glm::vec3(1.0, 1.0, 1.0))
-			* glm::translate(-glm::vec3(MARKER_SIZE/2 + 11.0f, -171.6f + MARKER_SIZE/2 + 11.0f, 0));
-			//* glm::rotate(glm::radians(180.0f), glm::vec3(0.0, 0.0, 1.0))
-			//* glm::translate(glm::vec3(MARKER_SIZE / 2 + 11.0f + 150.0f, MARKER_SIZE / 2 + 11.0f, 105.6f));
-		glm::mat4 Model;  // 各モデルを変える！
+			)
+			;
 
-		glm::mat4 markerTransMat
-			= glm::mat4_cast(current)
-			* glm::translate(glm::vec3(objTx, objTy, objTz));
+		glm::mat4 Model;  // 各モデルを変える！
+		//	マーカーからモデルまで
+		glm::mat4 marker2model = glm::mat4(1.0)
+			* glm::scale(glm::vec3(2.0, 2.0, 2.0))
+			* glm::rotate(glm::mat4(1.0), (float)(180.0f*CV_PI/180.0f), glm::vec3(0.0, 1.0, 0.0))
+			* glm::translate(glm::vec3(80.0f, 0.0, 0.0))
+			;
 		Model = glm::mat4(1.0f)
-			* marker2model
-			* markerTransMat;
+			* markerTransMat
+			* marker2model;
 		
 		//	Render Object
 		//	Our ModelViewProjection : multiplication of our 3 matrices
@@ -445,7 +536,7 @@ int main(void)
 		
 		//	Execute Rendering
 		static bool showModel = true;
-		if (showModel)	renderObject(mainRenderer);
+		if (showModel && visible)	renderObject(mainRenderer);
 
 		//	描画結果を反映
 		glfwSwapBuffers(mainWindow);
@@ -462,7 +553,6 @@ int main(void)
 		
 		cameraFrustumRH(cameraMatrixProj, projSize, glmProjMat, 0.1, 5000);
 		Projection = glmProjMat;
-		//Projection = projectionMatfromCameraMatrix(projectorCameraMatrix, subWinW, subWinH, 0.1, 10000.0);
 		//	カメラを原点としたプロジェクタ位置姿勢
 		View = glm::mat4(1.0)
 			* glm::lookAt(
@@ -477,14 +567,15 @@ int main(void)
 
 		//	カメラを原点としたワールド座標系
 		Model = glm::mat4(1.0)
-			* marker2model
-			* markerTransMat;
+			* markerTransMat
+			* marker2model;
 
 		subRenderer.MV = View * Model;
 		subRenderer.MVP = Projection * View * Model;
 		subRenderer.lightDirection = glm::vec3(markerTransMat[3]) - glm::vec3(glmTransProCam[3]);
 		subRenderer.lightColor = glm::vec3(1.0, 1.0, 1.0);
 		
+		if (visible)
 		renderObject(subRenderer);
 
 		// Swap buffers
@@ -578,12 +669,29 @@ int main(void)
 			cout << "Loaded: " << lutDir[4] << endl;
 		}
 
+		if (glfwGetKey(mainWindow, GLFW_KEY_ESCAPE) == GLFW_PRESS		//	Escキー
+			|| glfwGetKey(subWindow, GLFW_KEY_ESCAPE) == GLFW_PRESS
+			|| glfwWindowShouldClose(mainWindow))			//	ウィンドウの閉じるボタン
+		{
+			if (tracker)
+				delete tracker;
+			tracker = NULL;
+			safeTerminate();
+			break;
+		}
+
+		//-------------------------------
+		//	タイマー計測終了
+		//-------------------------------
+		processTime = glfwGetTime() - currentTime;
+		cout << "FPS : " << 1.0 / processTime << "\r";
+
 		glfwPollEvents();
 	}
-	safeTerminate();
 
 	return EXIT_SUCCESS;
 }
+
 void getUniformID(Renderer &r)
 {
 	r.mvpID = glGetUniformLocation(r.shader.program, "MVP");
