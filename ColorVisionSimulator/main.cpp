@@ -33,8 +33,8 @@ using namespace std;
 //-----------------------------------------------------
 const char vertexDir[] = "./shader/vertex.glsl";
 const char fragmentDir[] = "./shader/fragment.glsl";
-const char objDir[] = "../common/data/model/drop/drop_modified_x004.obj";
-const char textureDir[] = "../common/data/model/drop/textures/txt_001_diff.bmp";
+const char objDir[] = "../common/data/model/CalibBox/CalibBox.obj";
+const char textureDir[] = "../common/data/model/CalibBox/textures/txt_001_diff.bmp";
 //const char lutDir[] = "../common/data/lut/LUT_dichromat_typeP.png";
 const char *lutDir[5] = {
 	"../common/data/lut/LUT_dichromat_typeP.png",
@@ -528,8 +528,8 @@ int main(void)
 		glm::mat4 Model;  // 各モデルを変える！
 		//	マーカーからモデルまで
 		glm::mat4 marker2model = glm::mat4(1.0)
-			//* glm::rotate(glm::mat4(1.0), (float)(180.0f*CV_PI/180.0f), glm::vec3(0.0, 1.0, 0.0))
-			* glm::translate(glm::vec3(0.0f, 0.0, 216.0))
+			* glm::rotate(glm::mat4(1.0), (float)(180.0f*CV_PI/180.0f), glm::vec3(0.0, 1.0, 0.0))
+			//* glm::translate(glm::vec3(0.0f, 0.0, 216.0))
 			//* glm::scale(glm::vec3(1.0, 1.0, 1.0))
 			;
 		Model = glm::mat4(1.0)
