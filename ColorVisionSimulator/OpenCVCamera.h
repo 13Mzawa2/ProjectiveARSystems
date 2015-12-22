@@ -37,9 +37,9 @@ public:
 
 		//	OpenCVの歪み補正とARToolKitの歪み補正は全く別の計算式を使っているため，単純に値が使えない
 		//	ここではARToolKitの歪みベクトルをゼロとし，OpenCV側で補正してやることにする
-		for (int i = 0; i < 4; i++) {
+		/*for (int i = 0; i < 4; i++) {
 			cam->dist_factor[i] = 0;
-		}
+		}*/
 
 
 		for (int i = 0; i < 3; i++){

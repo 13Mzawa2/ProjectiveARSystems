@@ -33,8 +33,8 @@ using namespace std;
 //-----------------------------------------------------
 const char vertexDir[] = "./shader/vertex.glsl";
 const char fragmentDir[] = "./shader/fragment.glsl";
-const char objDir[] = "../common/data/model/CalibBox/CalibBox.obj";
-const char textureDir[] = "../common/data/model/CalibBox/textures/txt_001_diff.bmp";
+const char objDir[] = "../common/data/model/drop/drop_modified_x004.obj";
+const char textureDir[] = "../common/data/model/drop/textures/txt_001_diff.bmp";
 //const char lutDir[] = "../common/data/lut/LUT_dichromat_typeP.png";
 const char *lutDir[5] = {
 	"../common/data/lut/LUT_dichromat_typeP.png",
@@ -44,7 +44,7 @@ const char *lutDir[5] = {
 	"../common/data/lut/LUT_elder_80.png"
 };
 const char calibDir[] = "./data/calibdata.xml";
-const char calibARDir[] = "./data/calib_artkp.dat";
+//const char calibARDir[] = "./data/calib_artkp.dat";
 
 //-----------------------------------------------------
 //	for Calibration Data
@@ -70,6 +70,7 @@ static float objTx = 0, objTy = 0, objTz = 0;
 static glm::vec3 projT(0.0, 0.0, 0.0);
 //static glm::quat current = glm::quat(-0.3691, 0.00095, 0.00852, -0.9293);
 static glm::quat current = glm::quat(1.0, 0.0, 0.0, 0.0);
+static float objAngle = 0.0f;
 //	履歴データ 0が最も新しい 過去2フレームを使用
 std::vector<glm::mat4> prePose = { glm::mat4(1.0), glm::mat4(1.0), glm::mat4(1.0) };
 static float weightV = 0.9, weightA = 0.3;			//	mean = mix(p0, mix(p1, p2, weightA), weightV) 
@@ -323,19 +324,19 @@ int main(void)
 	ARToolKitPlus::Camera *param = OpenCVCamera::fromOpenCV(cameraMatrix, distCoeffs, cameraSize);
 
 	ARToolKitPlus::Logger *logger = nullptr;
-	tracker = new ARToolKitPlus::TrackerSingleMarkerImpl<6, 6, 6, 1, 8>(cameraSize.width, cameraSize.height);
+	tracker = new ARToolKitPlus::TrackerSingleMarkerImpl<6, 6, 6, 1, 10>(cameraSize.width, cameraSize.height);
 	//tracker->init("data/LogitechPro4000.dat", 0.1f, 5000.0f);	
 	tracker->init(NULL, 0.1f, 5000.0f);	//	ファイルは使用しない
 	tracker->setCamera(param);
 	//tracker->changeCameraSize(cameraSize.width, cameraSize.height);
 	tracker->activateAutoThreshold(true);
-	tracker->setNumAutoThresholdRetries(3);
+	tracker->setNumAutoThresholdRetries(5);
 	tracker->setBorderWidth(0.125f);			//	BCH boader width = 12.5%
 	tracker->setPatternWidth(60.0f);			//	marker physical width = 60.0mm
 	tracker->setPixelFormat(ARToolKitPlus::PIXEL_FORMAT_BGR);		//	With OpenCV
 	tracker->setUndistortionMode(ARToolKitPlus::UNDIST_NONE);		//	UndistortionはOpenCV側で行う
 	tracker->setMarkerMode(ARToolKitPlus::MARKER_ID_BCH);
-	tracker->setPoseEstimator(ARToolKitPlus::POSE_ESTIMATOR_RPP);
+	//tracker->setPoseEstimator(ARToolKitPlus::POSE_ESTIMATOR_RPP);
 
 	//ARToolKitPlus::Camera *pm = tracker->getCamera();
 	////tracker->setCamera(pm);
@@ -373,6 +374,13 @@ int main(void)
 		flip(colorImg, colorImg, 1);
 		Mat temp;
 		remap(colorImg, temp, mapC1, mapC2, INTER_LINEAR);
+		//Mat temp_gaussian;
+		//cvtColor(temp, temp_gaussian, CV_BGR2GRAY);
+		//adaptiveThreshold(temp_gaussian, temp_gaussian, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 281, 10);
+		//blur(temp_gaussian, temp_gaussian, Size(3, 3));
+		//threshold(temp_gaussian, temp_gaussian, 128, 255, THRESH_BINARY);
+		//cvtColor(temp_gaussian, temp_gaussian, CV_GRAY2BGR);
+		//imshow("gaussian", temp_gaussian);
 
 		//	カメラからマーカーまで
 		static glm::mat4 markerTransMat = glm::mat4(1.0f); 
@@ -384,13 +392,15 @@ int main(void)
 			visible = true;
 			//	コーナー点を描画
 			Point center(markers->pos[0], markers->pos[1]); 
+			circle(temp, center, 6, Scalar(0, 0, 255));
 			for (int j = 0; j < 4; j++) {
 				Point p(markers->vertex[j][0], markers->vertex[j][1]);
-				circle(colorImg, p, 6, Scalar(255, 0, 255));
+				circle(temp, p, 6, Scalar(255, 0, 255));
 			}
-
+			//cout << markers->vertex[0][0] << ", " << markers->vertex[0][1] << "\n";
 			markerTransMat = glm::make_mat4(tracker->getModelViewMatrix())
-				* glm::mat4_cast(current)
+				//* glm::mat4_cast(current)
+				* glm::rotate(glm::mat4(1.0), objAngle, glm::vec3(0, 0, 1))
 				* glm::translate(glm::vec3(objTx, objTy, objTz))
 				;
 
@@ -400,7 +410,7 @@ int main(void)
 		}
 		else
 		{
-			visible = false;
+			//visible = false;
 		}
 		//------------------------------
 		//	Get AR Marker Transform
@@ -502,9 +512,9 @@ int main(void)
 		glClear(GL_DEPTH_BUFFER_BIT);
 
 		//	プロジェクション行列
-		cameraFrustumRH(cameraMatrix, cameraSize, glmProjMat, 0.1, 5000);
-		glm::mat4 Projection;
+		glm::mat4 Projection = glm::mat4(1.0);
 		//Projection = glm::make_mat4(tracker->getProjectionMatrix());
+		cameraFrustumRH(cameraMatrix, cameraSize, glmProjMat, 0.1, 5000);
 		Projection = glmProjMat;
 		// カメラ行列
 		glm::mat4 View = glm::mat4(1.0)
@@ -518,11 +528,11 @@ int main(void)
 		glm::mat4 Model;  // 各モデルを変える！
 		//	マーカーからモデルまで
 		glm::mat4 marker2model = glm::mat4(1.0)
-			* glm::scale(glm::vec3(2.0, 2.0, 2.0))
-			* glm::rotate(glm::mat4(1.0), (float)(180.0f*CV_PI/180.0f), glm::vec3(0.0, 1.0, 0.0))
-			* glm::translate(glm::vec3(80.0f, 0.0, 0.0))
+			//* glm::rotate(glm::mat4(1.0), (float)(180.0f*CV_PI/180.0f), glm::vec3(0.0, 1.0, 0.0))
+			* glm::translate(glm::vec3(0.0f, 0.0, 216.0))
+			//* glm::scale(glm::vec3(1.0, 1.0, 1.0))
 			;
-		Model = glm::mat4(1.0f)
+		Model = glm::mat4(1.0)
 			* markerTransMat
 			* marker2model;
 		
@@ -853,6 +863,7 @@ void cursorPosEvent(GLFWwindow *window, double x, double y)
 			rad = length * glm::pi<float>();
 			after = glm::quat(cos(rad), -sin(rad) * dy / length, sin(rad) * dx / length, 0.0);
 			current = after * current;
+			objAngle += dx;
 		}
 		break;
 	case GLFW_MOUSE_BUTTON_MIDDLE:
@@ -883,34 +894,25 @@ void cameraFrustumRH(Mat camMat, Size camSz, glm::mat4 &projMat, double znear, d
 	//	Load camera parameters
 	double fx = camMat.at<double>(0, 0);
 	double fy = camMat.at<double>(1, 1);
+	double s = camMat.at<double>(0, 1);
 	double cx = camMat.at<double>(0, 2);
 	double cy = camMat.at<double>(1, 2);
 	double w = camSz.width, h = camSz.height;
-/*
-	double fovY = 1.0 / (fy / camSz.height * 2);
-	double aspect = camSz.width / camSz.height * fx / fy;
-	double frustumH = znear * fovY;
-	double frustumW = frustumH / aspect;
-	double offsetX = (camSz.width / 2 - cx) / camSz.width * frustumW * 2;
-	double offsetY = (camSz.height / 2 - cy) / camSz.height * frustumH * 2;
 
-	glm::mat4 projection = glm::frustum(
-		-frustumW - offsetX, frustumW - offsetX,
-		-frustumH - offsetY, frustumH - offsetY, 
-		znear, zfar);
-	projMat = projection;*/
-
-	////	OpenCV3プログラミングブックより引用
-	//double f = fy / h;
-	//double fovy = abs(atan(h / 2.0 / fy)*2.0)*180.0 / CV_PI;
-	//double aspect = (w*f / fx) / (h*f / fy);
-	//glm::mat4 projection = glm::perspective(fovy, aspect, znear, zfar);
+	//	参考:https://strawlab.org/2011/11/05/augmented-reality-with-OpenGL
+	//	With window_coords=="y_down", we have:
+	//	[2 * K00 / width,	-2 * K01 / width,	(width - 2 * K02 + 2 * x0) / width,		0]
+	//	[0,					2 * K11 / height,	(-height + 2 * K12 + 2 * y0) / height,	0]
+	//	[0,					0,					(-zfar - znear) / (zfar - znear),		-2 * zfar*znear / (zfar - znear)]
+	//	[0,					0,					-1,										0]
 
 	glm::mat4 projection(
-		-2.0 * fx / w, 0, 0, 0,
-		0, -2.0 * fy / h, 0, 0,
-		2.0 * cx / w - 1.0, 2.0 * cy / h - 1.0, -(zfar + znear) / (zfar - znear), -1.0,
-		0, 0, -2.0 * zfar * znear / (zfar - znear), 0);
+		-2.0 * fx / w,		0,						0,										0,
+		0,					-2.0 * fy / h,			0,										0,
+		1.0 - 2.0 * cx / w,	- 1.0 + 2.0 * cy / h,	-(zfar + znear) / (zfar - znear),		-1.0,
+		0,					0,						-2.0 * zfar * znear / (zfar - znear),	0);
+
+
 	projMat = projection;
 }
 
