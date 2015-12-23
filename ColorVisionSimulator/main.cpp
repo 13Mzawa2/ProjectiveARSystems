@@ -195,7 +195,7 @@ void initMainWindow(void)
 {
 	//	Main Window Setting
 	glfwMakeContextCurrent(mainWindow);				//	main windowをカレントにする
-	glfwSwapInterval(10);				//	SwapBufferのインターバル
+	glfwSwapInterval(0);				//	SwapBufferのインターバル
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
@@ -222,7 +222,7 @@ void initSubWindow(void)
 {
 	//	Sub Window Setting
 	glfwMakeContextCurrent(subWindow);				//	sub windowをカレントにする
-	glfwSwapInterval(1);				//	SwapBufferのインターバル
+	glfwSwapInterval(0);				//	SwapBufferのインターバル
 
 	glClearColor(1.0, 1.0, 1.0, 1.0);
 	glEnable(GL_DEPTH_TEST);
@@ -332,11 +332,11 @@ int main(void)
 	tracker->activateAutoThreshold(true);
 	tracker->setNumAutoThresholdRetries(5);
 	tracker->setBorderWidth(0.125f);			//	BCH boader width = 12.5%
-	tracker->setPatternWidth(60.0f);			//	marker physical width = 60.0mm
+	tracker->setPatternWidth(29.5f);			//	marker physical width = 60.0mm
 	tracker->setPixelFormat(ARToolKitPlus::PIXEL_FORMAT_BGR);		//	With OpenCV
 	tracker->setUndistortionMode(ARToolKitPlus::UNDIST_NONE);		//	UndistortionはOpenCV側で行う
 	tracker->setMarkerMode(ARToolKitPlus::MARKER_ID_BCH);
-	//tracker->setPoseEstimator(ARToolKitPlus::POSE_ESTIMATOR_RPP);
+	tracker->setPoseEstimator(ARToolKitPlus::POSE_ESTIMATOR_RPP);
 
 	//ARToolKitPlus::Camera *pm = tracker->getCamera();
 	////tracker->setCamera(pm);
@@ -410,7 +410,7 @@ int main(void)
 		}
 		else
 		{
-			//visible = false;
+			visible = false;
 		}
 		//------------------------------
 		//	Get AR Marker Transform
