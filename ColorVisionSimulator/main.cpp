@@ -124,7 +124,6 @@ Renderer mainRenderer, subRenderer;
 Mat	texImg;
 Mat lutMat;
 
-glm::mat4 projectionMatfromCameraMatrix(glm::mat3 cameraMat, int winW, int winH, double znear, double zfar);
 void getUniformID(Renderer &r);
 void setObjectTexture(Renderer &r, Mat &texture);
 void setLUT(Renderer &r, Mat &lut);
@@ -231,7 +230,8 @@ void initSubWindow(void)
 	glEnable(GL_LESS);				//	カメラに近い面だけレンダリングする
 
 	//	プログラマブルシェーダをロード
-	subRenderer.shader.initGLSL(vertexDir, fragmentDir);
+	//subRenderer.shader.initGLSL(vertexDir, fragmentDir);
+	subRenderer.shader = mainRenderer.shader;
 	//	Uniform変数へのハンドルを取得
 	getUniformID(subRenderer);
 

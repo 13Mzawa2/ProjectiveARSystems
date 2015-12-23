@@ -6,10 +6,16 @@ class Shader
 {
 private:
 	GLuint vertexShader, fragmentShader;		//	シェーダオブジェクト
+	const char *vertexFileName, *fragmentFileName;		//	シェーダファイル名
 public:
 	GLuint program;			//	シェーダプログラム
 	Shader();
 	~Shader();
+	Shader &operator=(Shader &_s)
+	{
+		initGLSL(_s.vertexFileName, _s.fragmentFileName);
+		return *this;
+	}
 	void readShaderCompile(GLuint shader, const char *file);	//	.shaderのコンパイル
 	void link(GLuint prog);		//	コンパイルしたshaderをリンクする
 	//	初期化

@@ -96,6 +96,8 @@ void Shader::initGLSL(const char *vertexFile, const char *fragmentFile)
 	if (err != GLEW_OK){
 		printf("Error: %s\n", glewGetErrorString(err));
 	}
+	memcpy(&vertexFileName, &vertexFile, sizeof(vertexFile) / sizeof(char));
+	memcpy(&fragmentFileName, &fragmentFile, sizeof(fragmentFile) / sizeof(char));
 	// GPU,OpenGLèÓïÒ
 	printf("VENDOR= %s \n", glGetString(GL_VENDOR));
 	printf("GPU= %s \n", glGetString(GL_RENDERER));
