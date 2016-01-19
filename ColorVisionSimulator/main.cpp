@@ -335,7 +335,7 @@ int main(void)
 	tracker->setPatternWidth(29.5f);			//	marker physical width = 60.0mm
 	tracker->setPixelFormat(ARToolKitPlus::PIXEL_FORMAT_BGR);		//	With OpenCV
 	tracker->setUndistortionMode(ARToolKitPlus::UNDIST_NONE);		//	UndistortionはOpenCV側で行う
-	tracker->setMarkerMode(ARToolKitPlus::MARKER_ID_BCH);
+	tracker->setMarkerMode(ARToolKitPlus::MARKER_ID_BCH);			//	BCH or SIMPLE
 	tracker->setPoseEstimator(ARToolKitPlus::POSE_ESTIMATOR_RPP);
 
 	//ARToolKitPlus::Camera *pm = tracker->getCamera();
@@ -387,6 +387,7 @@ int main(void)
 		ARToolKitPlus::ARMarkerInfo *markers;
 		int markerID = tracker->calc(temp.data, -1, true, &markers);
 		float conf = (float)tracker->getConfidence();		//	信頼度
+		cout << "markerID:" << markerID << ", conf=" << conf;
 		if (markerID == 4)
 		{
 			visible = true;
@@ -530,7 +531,7 @@ int main(void)
 		glm::mat4 marker2model = glm::mat4(1.0)
 			* glm::rotate(glm::mat4(1.0), (float)(180.0f*CV_PI/180.0f), glm::vec3(0.0, 1.0, 0.0))
 			//* glm::translate(glm::vec3(0.0f, 0.0, 216.0))
-			//* glm::scale(glm::vec3(1.0, 1.0, 1.0))
+			* glm::scale(glm::vec3(1.02, 1.02, 1.02))
 			;
 		Model = glm::mat4(1.0)
 			* markerTransMat
