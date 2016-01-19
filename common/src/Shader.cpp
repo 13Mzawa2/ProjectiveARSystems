@@ -1,5 +1,15 @@
-#include "Shader.h"
+/********************************************************
+Shader Class
+GLSLシェーダを管理するライブラリ
+参考：
+Modern OpenGL Tutorial	http://www.opengl-tutorial.org/
+床井研究室	http://marina.sys.wakayama-u.ac.jp/~tokoi/?date=20090827
 
+Change 20160119:
+シェーダのソースコード文字列を直接読む仕様を追加
+*********************************************************/
+
+#include "Shader.h"
 
 Shader::Shader()
 {
@@ -45,6 +55,31 @@ void Shader::readShaderCompile(GLuint shader, const char *file)
 			glGetShaderInfoLog(shader, size, &len, buf);
 			printf(buf);
 			free(buf);
+		}
+	}
+}
+
+void Shader::readInlineShaderCompile(GLuint shader, const char *source)
+{
+	char *infolog;
+	GLsizei size, infolen;
+	GLint compiled;
+	//printf(source);
+	size = strlen(source);
+	//	シェーダオブジェクトにプログラムをセット
+	glShaderSource(shader, 1, (const GLchar**)&source, &size);
+
+	//	シェーダのコンパイル
+	glCompileShader(shader);
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &compiled);
+	if (compiled == GL_FALSE){
+		printf("コンパイルできませんでした!!: InlineShader \n ");
+		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &size);
+		if (size > 0){
+			infolog = (char *)malloc(size);
+			glGetShaderInfoLog(shader, size, &infolen, infolog);
+			printf(infolog);
+			free(infolog);
 		}
 	}
 }
@@ -120,3 +155,38 @@ void Shader::initGLSL(const char *vertexFile, const char *fragmentFile)
 	// シェーダプログラムのリンク
 	link(program);
 }
+
+void Shader::initInlineGLSL(const char *vertexSource, const char *fragmentSource)
+{
+	//glewの初期化
+	GLenum err = glewInit();
+	if (err != GLEW_OK){
+		printf("Error: %s\n", glewGetErrorString(err));
+	}
+	//	擬似的にシェーダファイル名を作成
+	char vertexFile[] = "InlineVertex", fragmentFile[] = "InlineFragment";
+	memcpy(&vertexFileName, &vertexFile, sizeof(vertexFile) / sizeof(char));
+	memcpy(&fragmentFileName, &fragmentFile, sizeof(fragmentFile) / sizeof(char));
+	// GPU,OpenGL情報
+	printf("VENDOR= %s \n", glGetString(GL_VENDOR));
+	printf("GPU= %s \n", glGetString(GL_RENDERER));
+	printf("OpenGL= %s \n", glGetString(GL_VERSION));
+	printf("GLSL= %s \n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+	//シェーダーオブジェクトの作成
+	vertexShader = glCreateShader(GL_VERTEX_SHADER);
+	fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+	//シェーダーの読み込みとコンパイル
+	readInlineShaderCompile(vertexShader, vertexSource);
+	readInlineShaderCompile(fragmentShader, fragmentSource);
+	// プログラムオブジェクトの作成
+	program = glCreateProgram();
+	// シェーダオブジェクトをシェーダプログラムに関連付ける
+	glAttachShader(program, vertexShader);
+	glAttachShader(program, fragmentShader);
+	// シェーダオブジェクトの削除
+	glDeleteShader(vertexShader);
+	glDeleteShader(fragmentShader);
+	// シェーダプログラムのリンク
+	link(program);
+}
+

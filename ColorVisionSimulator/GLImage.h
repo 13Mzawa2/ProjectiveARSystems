@@ -1,4 +1,31 @@
-//	OpenGL/GLSLを利用した画像描画
+/********************************************************
+OpenGL Image with OpenCV
+GLFWでOpenCVのcv::Matを背景描画するためのクラス
+
+How to Use:
+1. メインループに入る前にGLImageを生成
+2. 描画したいGLFWwindowを与えてGLImageを初期化
+3. メインループ内で次の様に書く(ex. mainWindowの背景にframeImgを描画)
+
+//	Change Current Window
+glfwMakeContextCurrent(mainWindow);
+//	Clear Buffer Bits
+glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+//	Draw Image
+glImg.draw(frameImg);		//	<- NO glfwSwapBuffers()
+//	Clear Depth Bits (so you can overwride CG on frameImg)
+glClear(GL_DEPTH_BUFFER_BIT);
+//	Draw your CG
+//	End Draw
+glfwSwapBuffers(mainWindow);
+
+Change 20160119:
+・コンストラクタで初期化できるようにした
+・コメント大幅追加
+・GLSLをインライン化して外部ファイルを不要にした
+
+*********************************************************/
+
 #pragma once
 
 #include "OpenGLHeader.h"
@@ -12,12 +39,34 @@ private:
 	GLuint vao;		//	頂点配列オブジェクト
 	GLuint vbo;		//	頂点バッファオブジェクト
 	GLuint image;	//	テクスチャオブジェクト
-	GLuint imageLoc;
-	Shader s;
+	GLuint imageLoc;//	オブジェクトの場所
+	Shader s;		//	シェーダ
+	//	バーテックスシェーダ
+	const char *vertexSource = 
+		"#version 330 core \n" 
+		"layout(location = 0) in vec4 pv;\n" 
+		"void main(void)\n" 
+		"{\n" 
+		"	gl_Position = pv;\n" 
+		"}\n";
+	//	フラグメントシェーダ
+	const char *fragmentSource =
+		"#version 330 core \n"
+		"uniform sampler2DRect image;\n"
+		"layout(location = 0) out vec4 fc;\n"
+		"void main(void)\n"
+		"{\n"
+		"	fc = texture(image, gl_FragCoord.xy);\n"
+		"}\n";
 	int vertices;
+
 public:
 	GLImage()
 	{
+	}
+	GLImage(GLFWwindow *window)
+	{
+		init(window);
 	}
 	void init(GLFWwindow *window)
 	{
@@ -57,7 +106,7 @@ public:
 		glTexParameteri(GL_TEXTURE_RECTANGLE, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
 		//	シェーダのロード
-		s.initGLSL("./shader/vertex_drawpix.glsl", "./shader/fragment_drawpix.glsl");
+		s.initInlineGLSL(vertexSource, fragmentSource);
 		imageLoc = glGetUniformLocation(s.program, "image");
 	}
 	void draw(cv::Mat frame)

@@ -1,3 +1,10 @@
+/****************************************************/
+/*				OBJ Loader							*/
+/*	objファイルを読み込むためのライブラリ			*/
+/*	参考：Modern OpenGL Tutorial					*/
+/*	http://www.opengl-tutorial.org/					*/
+/****************************************************/
+
 #ifndef OBJLOADER_H
 #define OBJLOADER_H
 

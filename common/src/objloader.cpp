@@ -1,3 +1,9 @@
+/****************************************************/
+/*				OBJ Loader							*/
+/*	objファイルを読み込むためのライブラリ			*/
+/*	参考：Modern OpenGL Tutorial					*/
+/*	http://www.opengl-tutorial.org/					*/
+/****************************************************/
 
 #pragma region Disable Waring C4996
 //

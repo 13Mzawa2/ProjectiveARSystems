@@ -45,6 +45,9 @@
     <ClInclude Include="OpenCVCamera.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="OBJRenderingEngine.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -59,18 +62,15 @@
     <ClCompile Include="..\common\src\FlyCap2CVWrapper.cpp">
       <Filter>Common\Sources</Filter>
     </ClCompile>
+    <ClCompile Include="OBJRenderingEngine.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="shader\fragment.glsl">
       <Filter>Shader</Filter>
     </None>
     <None Include="shader\vertex.glsl">
-      <Filter>Shader</Filter>
-    </None>
-    <None Include="shader\fragment_drawpix.glsl">
-      <Filter>Shader</Filter>
-    </None>
-    <None Include="shader\vertex_drawpix.glsl">
       <Filter>Shader</Filter>
     </None>
   </ItemGroup>

@@ -1,3 +1,11 @@
+/*************************************************************
+FlyCapture2 to OpenCV Wrapper Class
+FlyCapture2SDKでキャプチャした画像をOpenCVに渡すためのクラス
+参考：
+聞きかじりめも　http://13mzawa2.hateblo.jp/entry/2015/11/13/030939
+
+*************************************************************/
+
 #pragma once
 
 #ifdef _DEBUG
