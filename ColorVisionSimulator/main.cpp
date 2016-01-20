@@ -212,6 +212,7 @@ void initMainWindow(void)
 	loadOBJ(objDir, mainRenderer.obj);						//	.objファイルを読み込み
 	mainRenderer.shader.initGLSL(vertexDir, fragmentDir);	//	プログラマブルシェーダをロード
 	mainRenderer.texImg = imread(textureDir);				//	テクスチャ画像を読み込む
+	flip(mainRenderer.texImg, mainRenderer.texImg, 1);
 	mainRenderer.init();
 }
 
@@ -231,7 +232,7 @@ void initSubWindow(void)
 	subRenderer.setVisionLUT(visionLUT);		//	LUTを読み込む
 	loadOBJ(objDir, subRenderer.obj);						//	.objファイルを読み込み
 	subRenderer.shader.initGLSL(vertexDir, fragmentDir);	//	プログラマブルシェーダをロード
-	subRenderer.texImg = imread(textureDir);				//	テクスチャ画像を読み込む
+	subRenderer.texImg = mainRenderer.texImg.clone();				//	テクスチャ画像を読み込む
 	subRenderer.init();
 
 	//	立方体マーカーに当てる白い光源
@@ -519,7 +520,7 @@ int main(void)
 		//	モデル行列
 		//	マーカーからモデルまで
 		glm::mat4 marker2model = glm::mat4(1.0)
-			* glm::translate(glm::vec3(0.0f, 0.0, -100.0))
+			* glm::translate(glm::vec3(0.0f, 0.0, -70.0))
 			//* glm::rotate(glm::mat4(1.0), (float)(180.0f*CV_PI/180.0f), glm::vec3(0.0, 1.0, 0.0))
 			//* glm::scale(glm::vec3(2.00, 2.00, 2.00))
 			;
@@ -574,6 +575,8 @@ int main(void)
 		subRenderer.lightColor = glm::vec3(1.0, 1.0, 1.0);
 		
 		if (visible) subRenderer.render();
+
+		glClear(GL_DEPTH_BUFFER_BIT);
 
 		//	Render Marker Light
 		Model = markerTransMat
