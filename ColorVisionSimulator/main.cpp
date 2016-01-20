@@ -59,8 +59,9 @@ using namespace std;
 const char vertexDir[] = "./shader/vertex.glsl";
 const char fragmentDir[] = "./shader/fragment.glsl";
 //	.obj Wavefront Object
-const char objDir[] = "../common/data/model/CalibBox/CalibBox.obj";
-const char textureDir[] = "../common/data/model/CalibBox/textures/txt_001_diff.bmp";
+const char objDir[] = "../common/data/model/drop/drop_modified_x004.obj";
+const char textureDir[] = "../common/data/model/drop/textures/txt_001_diff.bmp";
+const char cubeMarkerObjDir[] = "../common/data/model/MultiMarker/MultiMarker.obj";
 //	Look-Up Table File Path
 const char *lutDir[5] = {
 	"../common/data/lut/LUT_dichromat_typeP.png",
@@ -131,6 +132,7 @@ bool visible = false;
 //	OpenGL / GLSL Rendering Engine
 //-----------------------------------------------------
 OBJRenderingEngine mainRenderer, subRenderer;
+OBJRenderingEngine markerLight;
 cv::Mat visionLUT;
 glm::mat4 Model, View, Projection;
 
@@ -218,7 +220,7 @@ void initSubWindow(void)
 	//	Sub Window Setting
 	glfwMakeContextCurrent(subWindow);				//	sub windowをカレントにする
 	glfwSwapInterval(0);				//	SwapBufferのインターバル
-	glClearColor(1.0, 1.0, 1.0, 1.0);
+	glClearColor(0.90, 1.0, 1.0, 1.0);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_LESS);				//	カメラに近い面だけレンダリングする
@@ -231,6 +233,14 @@ void initSubWindow(void)
 	subRenderer.shader.initGLSL(vertexDir, fragmentDir);	//	プログラマブルシェーダをロード
 	subRenderer.texImg = imread(textureDir);				//	テクスチャ画像を読み込む
 	subRenderer.init();
+
+	//	立方体マーカーに当てる白い光源
+	markerLight.setVisionLUT(visionLUT);
+	loadOBJ(cubeMarkerObjDir, markerLight.obj);
+	markerLight.shader.initGLSL(vertexDir, fragmentDir);
+	markerLight.init();
+	markerLight.objectColor = glm::vec3(1.0, 1.0, 1.0);
+	markerLight.useLight = false;
 
 	//	キー入力を受け付けるようにする
 	glfwSetInputMode(subWindow, GLFW_STICKY_KEYS, GL_TRUE);
@@ -283,12 +293,29 @@ void initARTK(void)
 	arParamChangeSize(&cparam, cameraSize.width, cameraSize.height, &cparam);
 	cparam.xsize = cameraSize.width;
 	cparam.ysize = cameraSize.height;
+	//	OpenCV cameraMatrix を代入
 	cparam.mat[0][0] = cameraMatrix.at<double>(0, 0);
 	cparam.mat[1][1] = cameraMatrix.at<double>(1, 1);
 	cparam.mat[0][2] = cameraMatrix.at<double>(0, 2);
 	cparam.mat[1][2] = cameraMatrix.at<double>(1, 2);
 	cparam.mat[2][2] = 1.0;
-	//cparam.dist_function_version = 0;
+	//	ARToolKitでは歪み0のレンズとする（OpenCVに任せる）
+	//	詳細はARToolKit5のarParamObserv2Ideal()関数の実装を参照
+	cparam.dist_factor[0] = 0.0;
+	cparam.dist_factor[1] = 0.0;
+	cparam.dist_factor[2] = 0.0;
+	cparam.dist_factor[3] = 0.0;
+	//cparam.dist_factor[0] = distCoeffs.at<double>(0);	//	k1
+	//cparam.dist_factor[1] = distCoeffs.at<double>(1);	//	k2
+	//cparam.dist_factor[2] = distCoeffs.at<double>(2);	//	p1
+	//cparam.dist_factor[3] = distCoeffs.at<double>(3);	//	p2
+	cparam.dist_factor[4] = cameraMatrix.at<double>(0,0);	//	fx
+	cparam.dist_factor[5] = cameraMatrix.at<double>(1,1);	//	fy
+	cparam.dist_factor[6] = cameraMatrix.at<double>(0,2);	//	x0
+	cparam.dist_factor[7] = cameraMatrix.at<double>(1,2);	//	y0
+	cparam.dist_factor[8] = 1.0;	//	s
+	cparam.dist_function_version = 4;		//	OpenCV lens model
+
 	cparamLT = arParamLTCreate(&cparam, AR_PARAM_LT_DEFAULT_OFFSET);
 	arhandle = arCreateHandle(cparamLT);
 	arSetPixelFormat(arhandle, AR_PIXEL_FORMAT_BGR);
@@ -334,16 +361,6 @@ int main(void)
 
 	initARTK();
 
-	//for (int i = 0; i < 3; i++){
-	//	for (int j = 0; j < 4; j++)
-	//		std::cout << pm->mat[i][j] << " ";
-	//	std::cout << "\n";
-	//}
-	//cout << endl;
-	//for (int i = 0; i < 4; i++)
-	//	std::cout << pm->dist_factor[i] << " ";
-	//std::cout << std::endl;
-	//cout << "(" << pm->xsize << ", " << pm->ysize << ")" << endl;
 
 	//--------------------
 	//	タイマー設定
@@ -365,7 +382,7 @@ int main(void)
 		//------------------------------
 		colorImg = flycap.readImage();
 		flip(colorImg, colorImg, 1);
-		Mat temp;
+		Mat temp = colorImg.clone();
 		remap(colorImg, temp, mapC1, mapC2, INTER_LINEAR);
 
 		//	カメラからマーカーまで
@@ -376,27 +393,12 @@ int main(void)
 		{
 			visible = true;
 			double m_modelview[16];
-			double para[3][4];
 			for (int k = 0; k < 3; k++) {
 				for (int j = 0; j < 4; j++) {
-					para[k][j] = multiConfig->trans[k][j];
+					m_modelview[k + j * 4] = multiConfig->trans[k][j];
 				}
+				m_modelview[3 + k * 4] = 0.0;
 			}
-			m_modelview[0 + 0 * 4] = para[0][0]; // R1C1
-			m_modelview[0 + 1 * 4] = para[0][1]; // R1C2
-			m_modelview[0 + 2 * 4] = para[0][2];
-			m_modelview[0 + 3 * 4] = para[0][3];
-			m_modelview[1 + 0 * 4] = para[1][0]; // R2
-			m_modelview[1 + 1 * 4] = para[1][1];
-			m_modelview[1 + 2 * 4] = para[1][2];
-			m_modelview[1 + 3 * 4] = para[1][3];
-			m_modelview[2 + 0 * 4] = para[2][0]; // R3
-			m_modelview[2 + 1 * 4] = para[2][1];
-			m_modelview[2 + 2 * 4] = para[2][2];
-			m_modelview[2 + 3 * 4] = para[2][3];
-			m_modelview[3 + 0 * 4] = 0.0;
-			m_modelview[3 + 1 * 4] = 0.0;
-			m_modelview[3 + 2 * 4] = 0.0;
 			m_modelview[3 + 3 * 4] = 1.0;
 			markerTransMat = glm::make_mat4(m_modelview);
 		}
@@ -517,9 +519,9 @@ int main(void)
 		//	モデル行列
 		//	マーカーからモデルまで
 		glm::mat4 marker2model = glm::mat4(1.0)
-			* glm::rotate(glm::mat4(1.0), (float)(180.0f*CV_PI/180.0f), glm::vec3(0.0, 1.0, 0.0))
-			//* glm::translate(glm::vec3(0.0f, 0.0, 216.0))
-			//* glm::scale(glm::vec3(1.02, 1.02, 1.02))
+			* glm::translate(glm::vec3(0.0f, 0.0, -100.0))
+			//* glm::rotate(glm::mat4(1.0), (float)(180.0f*CV_PI/180.0f), glm::vec3(0.0, 1.0, 0.0))
+			//* glm::scale(glm::vec3(2.00, 2.00, 2.00))
 			;
 		Model = glm::mat4(1.0)
 			* markerTransMat
@@ -556,6 +558,7 @@ int main(void)
 			* glmTransProCam
 			* glm::translate(projT)		//	キャリブレーションの手動修正
 			;
+		
 
 		//	カメラを原点としたワールド座標系
 		Model = glm::mat4(1.0)
@@ -571,6 +574,16 @@ int main(void)
 		subRenderer.lightColor = glm::vec3(1.0, 1.0, 1.0);
 		
 		if (visible) subRenderer.render();
+
+		//	Render Marker Light
+		Model = markerTransMat
+			//* glm::rotate(glm::mat4(1.0), (float)(180.0f*CV_PI / 180.0f), glm::vec3(0.0, 1.0, 0.0))
+			;
+
+		markerLight.shader.enable();
+		markerLight.MV = View * Model;
+		markerLight.MVP = Projection * View * Model;
+		markerLight.render();
 
 		// Swap buffers
 		glfwSwapBuffers(subWindow);

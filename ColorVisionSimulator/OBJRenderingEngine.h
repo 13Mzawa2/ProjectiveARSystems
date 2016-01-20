@@ -31,6 +31,8 @@ protected:
 	GLuint textureSamplerID;		//	uniform sampler2D myTextureSampler;
 	GLuint lightDirectionID;		//	uniform vec3 LightDirection;
 	GLuint lightColorID;			//	uniform vec3 LightColor;
+	GLuint lightSwitchID;			//	uniform bool LightSwitch;
+	GLuint objectColorID;			//	uniform vec3 ObjectColor;
 	GLuint lutSamplerID;			//	uniform sampler3D lutSampler;
 	GLuint lutSwitchID;				//	uniform bool lutSwitch;
 	////	object buffers
@@ -51,7 +53,9 @@ public:
 	glm::mat4 MV;
 	glm::vec3 lightDirection;
 	glm::vec3 lightColor;
+	glm::vec3 objectColor;
 	bool useLUT = false;
+	bool useLight = true;
 
 	OBJRenderingEngine();
 	~OBJRenderingEngine();

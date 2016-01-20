@@ -35,6 +35,8 @@ void OBJRenderingEngine::getUniformID()
 	textureSamplerID = glGetUniformLocation(shader.program, "myTextureSampler");
 	lightDirectionID = glGetUniformLocation(shader.program, "LightDirection");
 	lightColorID = glGetUniformLocation(shader.program, "LightColor");
+	lightSwitchID = glGetUniformLocation(shader.program, "LightSwitch");
+	objectColorID = glGetUniformLocation(shader.program, "ObjectColor");
 	lutSamplerID = glGetUniformLocation(shader.program, "lutSampler");
 	lutSwitchID = glGetUniformLocation(shader.program, "lutSwitch");
 }
@@ -126,7 +128,9 @@ void OBJRenderingEngine::render()
 	glUniformMatrix4fv(mvID, 1, GL_FALSE, &MV[0][0]);
 	glUniform3fv(lightDirectionID, 1, &lightDirection[0]);
 	glUniform3fv(lightColorID, 1, &lightColor[0]);
+	glUniform3fv(objectColorID, 1, &objectColor[0]);
 	glUniform1i(lutSwitchID, useLUT);
+	glUniform1i(lightSwitchID, useLight);
 
 	//	テクスチャユニット0にtextureBufferをバインド
 	glActiveTexture(GL_TEXTURE0);
