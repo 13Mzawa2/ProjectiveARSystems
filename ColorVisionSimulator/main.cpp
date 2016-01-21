@@ -221,7 +221,7 @@ void initSubWindow(void)
 	//	Sub Window Setting
 	glfwMakeContextCurrent(subWindow);				//	sub windowをカレントにする
 	glfwSwapInterval(0);				//	SwapBufferのインターバル
-	glClearColor(0.90, 1.0, 1.0, 1.0);
+	glClearColor(1.0, 1.0, 1.0, 1.0);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_LESS);				//	カメラに近い面だけレンダリングする
@@ -520,7 +520,7 @@ int main(void)
 		//	モデル行列
 		//	マーカーからモデルまで
 		glm::mat4 marker2model = glm::mat4(1.0)
-			* glm::translate(glm::vec3(0.0f, 0.0, -70.0))
+			* glm::translate(glm::vec3(0.0f, 0.0f, -70.0f))
 			//* glm::rotate(glm::mat4(1.0), (float)(180.0f*CV_PI/180.0f), glm::vec3(0.0, 1.0, 0.0))
 			//* glm::scale(glm::vec3(2.00, 2.00, 2.00))
 			;
@@ -594,6 +594,16 @@ int main(void)
 		//------------------------------
 		//	Key Events
 		//------------------------------
+
+		if (glfwGetKey(subWindow, GLFW_KEY_S) == GLFW_PRESS)
+		{
+			Mat capture = colorImg.clone();
+			glfwMakeContextCurrent(mainWindow);
+			glReadBuffer(GL_FRONT);
+			glReadPixels(0, 0, cameraSize.width, cameraSize.height, GL_BGR, GL_UNSIGNED_BYTE, capture.data);
+			flip(capture, capture, 0);
+			imwrite("capture.png", capture);
+		}
 
 		if (glfwGetKey(subWindow, GLFW_KEY_D) == GLFW_PRESS)
 		{
