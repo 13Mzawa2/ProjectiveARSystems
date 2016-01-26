@@ -60,7 +60,7 @@ const char vertexDir[] = "./shader/vertex.glsl";
 const char fragmentDir[] = "./shader/fragment.glsl";
 //	.obj Wavefront Object
 const char objDir[] = "../common/data/model/drop/drop_modified_x004.obj";
-const char textureDir[] = "../common/data/model/drop/textures/txt_001_diff.bmp";
+const char textureDir[] = "../common/data/model/drop/textures/CocaCola_texture.png";
 const char cubeMarkerObjDir[] = "../common/data/model/MultiMarker/MultiMarker.obj";
 //	Look-Up Table File Path
 const char *lutDir[5] = {
@@ -113,7 +113,8 @@ GLFWwindow	*mainWindow, *subWindow;		//	マルチウィンドウ
 int subWinW, subWinH;
 //static float objTx = 85.9375, objTy = 588.54609, objTz = -40.4250069;
 static float objTx = 0, objTy = 0, objTz = 0;
-static glm::vec3 projT(0.0, 0.0, 0.0);
+static glm::vec3 projT(0.0, 0.0, 0.0);	//	手動位置補正：並進
+static glm::vec3 projR(0.0, 0.0, 0.0);	//	手動位置補正：回転(Rx, Ry, Rz)
 //static glm::quat current = glm::quat(-0.3691, 0.00095, 0.00852, -0.9293);
 static glm::quat current = glm::quat(1.0, 0.0, 0.0, 0.0);
 static float objAngle = 0.0f;
@@ -135,6 +136,8 @@ OBJRenderingEngine mainRenderer, subRenderer;
 OBJRenderingEngine markerLight;
 cv::Mat visionLUT;
 glm::mat4 Model, View, Projection;
+glm::vec3 colorWhite(1.0, 1.0, 1.0);	//	現在の白色点
+glm::vec3 backupWhite(1.0, 1.0, 1.0);	//	LUT変換時の白色点
 
 //-----------------------------------------------------
 //	Prototypes
@@ -149,7 +152,8 @@ void cursorPosEvent(GLFWwindow *window, double x, double y);
 void scrollEvent(GLFWwindow *window, double xofset, double yofset);
 void safeTerminate(void);
 void showMatrix(glm::mat4 &m);
-
+void lookup(Mat &src, Mat &dst, Mat &LUT);
+glm::vec3 lookupColor(glm::vec3 &src, Mat LUT);
 
 int initWindow(void)
 {
@@ -221,7 +225,7 @@ void initSubWindow(void)
 	//	Sub Window Setting
 	glfwMakeContextCurrent(subWindow);				//	sub windowをカレントにする
 	glfwSwapInterval(0);				//	SwapBufferのインターバル
-	glClearColor(1.0, 1.0, 1.0, 1.0);
+	glClearColor(colorWhite[0],colorWhite[1],colorWhite[2], 1.0);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_LESS);				//	カメラに近い面だけレンダリングする
@@ -240,8 +244,11 @@ void initSubWindow(void)
 	loadOBJ(cubeMarkerObjDir, markerLight.obj);
 	markerLight.shader.initGLSL(vertexDir, fragmentDir);
 	markerLight.init();
-	markerLight.objectColor = glm::vec3(1.0, 1.0, 1.0);
+	markerLight.objectColor = colorWhite;
 	markerLight.useLight = false;
+
+	//	読み込んでいるLUTの白色点を記憶
+	backupWhite = lookupColor(glm::vec3(1.0, 1.0, 1.0), visionLUT);
 
 	//	キー入力を受け付けるようにする
 	glfwSetInputMode(subWindow, GLFW_STICKY_KEYS, GL_TRUE);
@@ -321,6 +328,7 @@ void initARTK(void)
 	arhandle = arCreateHandle(cparamLT);
 	arSetPixelFormat(arhandle, AR_PIXEL_FORMAT_BGR);
 	arSetDebugMode(arhandle, AR_DEBUG_DISABLE);
+	arSetLabelingThreshMode(arhandle, AR_LABELING_THRESH_MODE_AUTO_OTSU);
 	ar3dhandle = ar3DCreateHandle(&cparam);
 	//	Setup Cube Marker
 	pattHandle = arPattCreateHandle();
@@ -372,11 +380,11 @@ int main(void)
 	//	メインループ
 	while (1)							
 	{
+
 		//------------------------------
 		//	タイマー計測開始
 		//------------------------------
 		currentTime = glfwGetTime();
-
 
 		//------------------------------
 		//	Detect Cube Marker
@@ -407,6 +415,14 @@ int main(void)
 		{
 			visible = false;
 		}
+
+
+		//-------------------------------
+		//	タイマー計測終了
+		//-------------------------------
+		processTime = glfwGetTime() - currentTime;
+		cout << "FPS : " << 1.0 / processTime << "\r";
+
 		//------------------------------
 		//	Get AR Marker Transform
 		//------------------------------
@@ -496,7 +512,7 @@ int main(void)
 		//	//	cout << ";\n";
 		//	//}
 		//}
-		
+
 		//------------------------------
 		//	Main Winodw
 		//------------------------------
@@ -534,7 +550,7 @@ int main(void)
 		mainRenderer.MV = View * Model;
 		mainRenderer.MVP = Projection * mainRenderer.MV;
 		mainRenderer.lightDirection = glm::vec3(mainRenderer.MV[3]);
-		mainRenderer.lightColor = glm::vec3(1.0, 1.0, 1.0);
+		mainRenderer.lightColor = colorWhite;
 		
 		//	Execute Rendering
 		static bool showModel = true;
@@ -556,8 +572,11 @@ int main(void)
 			glm::vec3(0, 0, 1), // 見ている点
 			glm::vec3(0, 1, 0)  // カメラの上方向
 			)
-			* glmTransProCam
+			* glm::rotate(projR[0], glm::vec3(1, 0, 0))
+			* glm::rotate(projR[1], glm::vec3(0, 1, 0))
+			* glm::rotate(projR[2], glm::vec3(0, 0, 1))
 			* glm::translate(projT)		//	キャリブレーションの手動修正
+			* glmTransProCam
 			;
 		
 
@@ -572,7 +591,7 @@ int main(void)
 		subRenderer.MV = View * Model;
 		subRenderer.MVP = Projection * View * Model;
 		subRenderer.lightDirection = glm::vec3(subRenderer.MV[3]);
-		subRenderer.lightColor = glm::vec3(1.0, 1.0, 1.0);
+		subRenderer.lightColor = colorWhite;
 		
 		if (visible) subRenderer.render();
 
@@ -586,6 +605,7 @@ int main(void)
 		markerLight.shader.enable();
 		markerLight.MV = View * Model;
 		markerLight.MVP = Projection * View * Model;
+		markerLight.objectColor = colorWhite;
 		markerLight.render();
 
 		// Swap buffers
@@ -594,7 +614,7 @@ int main(void)
 		//------------------------------
 		//	Key Events
 		//------------------------------
-
+		//	Save MainWindow Front Image
 		if (glfwGetKey(subWindow, GLFW_KEY_S) == GLFW_PRESS)
 		{
 			Mat capture = colorImg.clone();
@@ -605,59 +625,102 @@ int main(void)
 			imwrite("capture.png", capture);
 		}
 
-		if (glfwGetKey(subWindow, GLFW_KEY_D) == GLFW_PRESS)
-		{
-			cout << "T = [" << objTx << "," << objTy << "," << objTz << "]\n";
-			cout << "Q = [" << current.w << "," << current.x << "," << current.y << "," << current.z << "]\n";
-		}
-
+		//if (glfwGetKey(subWindow, GLFW_KEY_D) == GLFW_PRESS)
+		//{
+		//	cout << "T = [" << objTx << "," << objTy << "," << objTz << "]\n";
+		//	cout << "Q = [" << current.w << "," << current.x << "," << current.y << "," << current.z << "]\n";
+		//}
+		//	Show Current Pro-Cam Translation Matrix
 		if (glfwGetKey(subWindow, GLFW_KEY_P) == GLFW_PRESS)
 		{
-			showMatrix(glmTransProCam
-				* glm::translate(projT));
+			showMatrix(glm::mat4(1.0)
+				* glm::rotate(projR[0], glm::vec3(1, 0, 0))
+				* glm::rotate(projR[1], glm::vec3(0, 1, 0))
+				* glm::rotate(projR[2], glm::vec3(0, 0, 1))
+				* glm::translate(projT)
+				*glmTransProCam);
 		}
+		//	Rotation
 		if (glfwGetKey(subWindow, GLFW_KEY_I) == GLFW_PRESS)
 		{
 			if (glfwGetKey(subWindow, GLFW_KEY_X) == GLFW_PRESS)
-				projT[0] += 0.1;
+				projR[0] += 0.0005;
 			if (glfwGetKey(subWindow, GLFW_KEY_Y) == GLFW_PRESS)
-				projT[1] += 0.1;
+				projR[1] += 0.0005;
 			if (glfwGetKey(subWindow, GLFW_KEY_Z) == GLFW_PRESS)
-				projT[2] += 0.1;
+				projR[2] += 0.0005;
 		}
 		else
 		{
 			if (glfwGetKey(subWindow, GLFW_KEY_X) == GLFW_PRESS)
-				projT[0] -= 0.1;
+				projR[0] -= 0.0005;
 			if (glfwGetKey(subWindow, GLFW_KEY_Y) == GLFW_PRESS)
-				projT[1] -= 0.1;
+				projR[1] -= 0.0005;
 			if (glfwGetKey(subWindow, GLFW_KEY_Z) == GLFW_PRESS)
-				projT[2] -= 0.1;
+				projR[2] -= 0.0005;
 		}
-		if (glfwGetKey(subWindow, GLFW_KEY_M) == GLFW_PRESS)
+		//	Translation
+		if (glfwGetKey(subWindow, GLFW_KEY_SLASH) == GLFW_PRESS)			//	L	+ x
+			projT[0] += 0.1;
+		if (glfwGetKey(subWindow, GLFW_KEY_COMMA) == GLFW_PRESS)		//	.	- x
+			projT[0] -= 0.1;
+		if (glfwGetKey(subWindow, GLFW_KEY_L) == GLFW_PRESS)		//	,	+ y
+			projT[1] += 0.1;
+		if (glfwGetKey(subWindow, GLFW_KEY_PERIOD) == GLFW_PRESS)		//	/	- y
+			projT[1] -= 0.1;
+		if (glfwGetKey(subWindow, GLFW_KEY_K) == GLFW_PRESS)			//	K	+ z
+			projT[2] += 0.1;
+		if (glfwGetKey(subWindow, GLFW_KEY_SEMICOLON) == GLFW_PRESS)	//	;	- z
+			projT[2] -= 0.1;
+		//	Set Default
+		if (glfwGetKey(subWindow, GLFW_KEY_HOME) == GLFW_PRESS)
 		{
-			showModel = !showModel;
+			projR = glm::vec3(0.0); 
+			projT = glm::vec3(0.0);
+		}
+		//	Show/Hide Model
+		static bool keyHoldingM = false;
+		int cM = glfwGetKey(subWindow, GLFW_KEY_M);
+		if (keyHoldingM || cM == GLFW_PRESS)
+		{
+			if (keyHoldingM && cM == GLFW_RELEASE)
+			{
+				showModel = !showModel;
+				keyHoldingM = false;
+			}
+			else
+				keyHoldingM = true;
 		}
 
 		//	Change LUT
-		static bool keyHolding = false;
-		int c = glfwGetKey(subWindow, GLFW_KEY_SPACE);
-		if (keyHolding || c == GLFW_PRESS)
+		static bool keyHoldingSpace = false;
+		int cSpace = glfwGetKey(subWindow, GLFW_KEY_SPACE);
+		if (keyHoldingSpace || cSpace == GLFW_PRESS)
 		{
-			if (keyHolding && c == GLFW_RELEASE)
+			if (keyHoldingSpace && cSpace == GLFW_RELEASE)
 			{
 				mainRenderer.useLUT = !mainRenderer.useLUT;
 				subRenderer.useLUT = !subRenderer.useLUT;
-				keyHolding = false;
+				if (subRenderer.useLUT)
+					colorWhite = backupWhite;
+				else
+					colorWhite = glm::vec3(1.0, 1.0, 1.0);
+
+				glClearColor(colorWhite[0], colorWhite[1], colorWhite[2], 1.0);
+				keyHoldingSpace = false;
 			}
 			else
-				keyHolding = true;
+			{
+				keyHoldingSpace = true;
+			}
 		}
 		if (glfwGetKey(subWindow, GLFW_KEY_1) == GLFW_PRESS)
 		{
 			visionLUT = imread(lutDir[0]);
 			mainRenderer.updateLUT(visionLUT);
 			subRenderer.updateLUT(visionLUT);
+			backupWhite = lookupColor(glm::vec3(1.0, 1.0, 1.0), visionLUT);
+			if (subRenderer.useLUT) colorWhite = backupWhite;
 			cout << "Loaded: " << lutDir[0] << endl;
 		}
 		if (glfwGetKey(subWindow, GLFW_KEY_2) == GLFW_PRESS)
@@ -665,6 +728,8 @@ int main(void)
 			visionLUT = imread(lutDir[1]);
 			mainRenderer.updateLUT(visionLUT);
 			subRenderer.updateLUT(visionLUT);
+			backupWhite = lookupColor(glm::vec3(1.0, 1.0, 1.0), visionLUT);
+			if (subRenderer.useLUT) colorWhite = backupWhite;
 			cout << "Loaded: " << lutDir[1] << endl;
 		}
 		if (glfwGetKey(subWindow, GLFW_KEY_3) == GLFW_PRESS)
@@ -672,6 +737,8 @@ int main(void)
 			visionLUT = imread(lutDir[2]);
 			mainRenderer.updateLUT(visionLUT);
 			subRenderer.updateLUT(visionLUT);
+			backupWhite = lookupColor(glm::vec3(1.0, 1.0, 1.0), visionLUT);
+			if (subRenderer.useLUT) colorWhite = backupWhite;
 			cout << "Loaded: " << lutDir[2] << endl;
 		}
 		if (glfwGetKey(subWindow, GLFW_KEY_4) == GLFW_PRESS)
@@ -679,6 +746,8 @@ int main(void)
 			visionLUT = imread(lutDir[3]);
 			mainRenderer.updateLUT(visionLUT);
 			subRenderer.updateLUT(visionLUT);
+			backupWhite = lookupColor(glm::vec3(1.0, 1.0, 1.0), visionLUT);
+			if (subRenderer.useLUT) colorWhite = backupWhite;
 			cout << "Loaded: " << lutDir[3] << endl;
 		}
 		if (glfwGetKey(subWindow, GLFW_KEY_5) == GLFW_PRESS)
@@ -686,9 +755,11 @@ int main(void)
 			visionLUT = imread(lutDir[4]);
 			mainRenderer.updateLUT(visionLUT);
 			subRenderer.updateLUT(visionLUT);
+			backupWhite = lookupColor(glm::vec3(1.0, 1.0, 1.0), visionLUT);
+			if (subRenderer.useLUT) colorWhite = backupWhite;
 			cout << "Loaded: " << lutDir[4] << endl;
 		}
-
+		//	Quit Program
 		if (glfwGetKey(mainWindow, GLFW_KEY_ESCAPE) == GLFW_PRESS		//	Escキー
 			|| glfwGetKey(subWindow, GLFW_KEY_ESCAPE) == GLFW_PRESS
 			|| glfwWindowShouldClose(mainWindow))			//	ウィンドウの閉じるボタン
@@ -697,11 +768,6 @@ int main(void)
 			break;
 		}
 
-		//-------------------------------
-		//	タイマー計測終了
-		//-------------------------------
-		processTime = glfwGetTime() - currentTime;
-		cout << "FPS : " << 1.0 / processTime << "\r";
 
 		glfwPollEvents();
 	}
@@ -788,4 +854,29 @@ void showMatrix(glm::mat4 &m)
 		cout << m[j][3] << "\t";
 	}
 	cout << "]" << endl;
+}
+
+
+//	LUTに従って画素値の入れ替え
+void lookup(Mat &src, Mat &dst, Mat &LUT)
+{
+	//	LUTのアクセス用マクロ
+#define BIT(B, G, R) ((B) << 16 | (G) << 8 | (R))
+	dst = Mat(src.rows, src.cols, CV_8UC3);
+	for (int y = 0; y < dst.rows; y++)
+	{
+		for (int x = 0; x < dst.cols; x++)
+		{
+			matB(dst, x, y) = LUT.at<Vec3b>(BIT(matB(src, x, y), matG(src, x, y), matR(src, x, y)), 0)[0];
+			matG(dst, x, y) = LUT.at<Vec3b>(BIT(matB(src, x, y), matG(src, x, y), matR(src, x, y)), 0)[1];
+			matR(dst, x, y) = LUT.at<Vec3b>(BIT(matB(src, x, y), matG(src, x, y), matR(src, x, y)), 0)[2];
+		}
+	}
+}
+
+glm::vec3 lookupColor(glm::vec3 &src, Mat LUT)
+{
+	Vec3b temp((uchar)(src[2] * 255.0), (uchar)(src[1] * 255.0), (uchar)(src[0] * 255.0));
+	temp = LUT.at<Vec3b>(BIT(temp[0], temp[1], temp[2]));
+	return glm::vec3((double)temp[2]/255.0, (double)temp[1]/255.0, (double)temp[0]/255.0);
 }
