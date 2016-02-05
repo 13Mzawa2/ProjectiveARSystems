@@ -60,7 +60,7 @@ const char vertexDir[] = "./shader/vertex.glsl";
 const char fragmentDir[] = "./shader/fragment.glsl";
 //	.obj Wavefront Object
 const char objDir[] = "../common/data/model/drop/drop_modified_x004.obj";
-const char textureDir[] = "../common/data/model/drop/textures/CocaCola_texture.png";
+const char textureDir[] = "../common/data/model/drop/textures/txt_001_diff.bmp";
 const char cubeMarkerObjDir[] = "../common/data/model/MultiMarker/MultiMarker.obj";
 //	Look-Up Table File Path
 const char *lutDir[5] = {
@@ -69,6 +69,17 @@ const char *lutDir[5] = {
 	"../common/data/lut/LUT_dichromat_typeT.png",
 	"../common/data/lut/LUT_elder_70.png",
 	"../common/data/lut/LUT_elder_80.png"
+};
+const char *textureSetDir[9] = {
+	"../common/data/model/drop/textures/txt_001_diff.bmp",
+	"../common/data/model/drop/textures/劣化/txt_001_diff_劣化15.bmp",
+	"../common/data/model/drop/textures/劣化/txt_001_diff_劣化30.bmp",
+	"../common/data/model/drop/textures/劣化/txt_001_diff_劣化45.bmp",
+	"../common/data/model/drop/textures/劣化/txt_001_diff_劣化60.bmp",
+	"../common/data/model/drop/textures/劣化/txt_001_diff_劣化75.bmp",
+	"../common/data/model/drop/textures/劣化/txt_001_diff_劣化90.bmp",
+	"../common/data/model/drop/textures/劣化/txt_001_diff_劣化105.bmp",
+	"../common/data/model/drop/textures/劣化/txt_001_diff_劣化120.bmp"
 };
 //	Camera Calibration File
 //	OpenCVのキャリブレーションデータを用いる
@@ -630,6 +641,7 @@ int main(void)
 		//	cout << "T = [" << objTx << "," << objTy << "," << objTz << "]\n";
 		//	cout << "Q = [" << current.w << "," << current.x << "," << current.y << "," << current.z << "]\n";
 		//}
+
 		//	Show Current Pro-Cam Translation Matrix
 		if (glfwGetKey(subWindow, GLFW_KEY_P) == GLFW_PRESS)
 		{
@@ -640,6 +652,7 @@ int main(void)
 				* glm::translate(projT)
 				*glmTransProCam);
 		}
+
 		//	Rotation
 		if (glfwGetKey(subWindow, GLFW_KEY_I) == GLFW_PRESS)
 		{
@@ -691,6 +704,53 @@ int main(void)
 			else
 				keyHoldingM = true;
 		}
+
+		//	Change Texture
+		static int texNum = 0;
+		static bool keyHolding7 = false;
+		int c7 = glfwGetKey(subWindow, GLFW_KEY_7);
+		if (keyHolding7 || c7 == GLFW_PRESS)
+		{
+			if (keyHolding7 && c7 == GLFW_RELEASE)
+			{
+				if (texNum == 0) texNum = 0;
+				else texNum--;
+				mainRenderer.texImg = imread(textureSetDir[texNum]);
+				flip(mainRenderer.texImg, mainRenderer.texImg, 1);
+				mainRenderer.setObjectTexture();
+				subRenderer.texImg = imread(textureSetDir[texNum]);
+				flip(subRenderer.texImg, subRenderer.texImg, 1);
+				subRenderer.setObjectTexture();
+				cout << "テクスチャ変更：劣化度" << texNum * 15 << endl;
+				keyHolding7 = false;
+			}
+			else
+				keyHolding7 = true;
+		}
+		static bool keyHolding8 = false;
+		int c8 = glfwGetKey(subWindow, GLFW_KEY_8);
+		if (keyHolding8 || c8 == GLFW_PRESS)
+		{
+			if (keyHolding8 && c8 == GLFW_RELEASE)
+			{
+				if (texNum == 8) texNum = 8;
+				else texNum++;
+				mainRenderer.texImg = imread(textureSetDir[texNum]);
+				flip(mainRenderer.texImg, mainRenderer.texImg, 1);
+				mainRenderer.setObjectTexture();
+				subRenderer.texImg = imread(textureSetDir[texNum]);
+				flip(subRenderer.texImg, subRenderer.texImg, 1);
+				subRenderer.setObjectTexture();
+				if (texNum >= 7)
+					cout << "テクスチャ変更：劣化度" << 110 + (texNum - 6) * 5 << endl;
+				else
+					cout << "テクスチャ変更：劣化度" << texNum * 15 << endl;
+				keyHolding8 = false;
+			}
+			else
+				keyHolding8 = true;
+		}
+
 
 		//	Change LUT
 		static bool keyHoldingSpace = false;
