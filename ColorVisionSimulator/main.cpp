@@ -122,17 +122,15 @@ static double borderSize = 0.125;
 
 GLFWwindow	*mainWindow, *subWindow;		//	マルチウィンドウ
 int subWinW, subWinH;
-//static float objTx = 85.9375, objTy = 588.54609, objTz = -40.4250069;
 static float objTx = 0, objTy = 0, objTz = 0;
 static glm::vec3 projT(0.0, 0.0, 0.0);	//	手動位置補正：並進
 static glm::vec3 projR(0.0, 0.0, 0.0);	//	手動位置補正：回転(Rx, Ry, Rz)
-//static glm::quat current = glm::quat(-0.3691, 0.00095, 0.00852, -0.9293);
 static glm::quat current = glm::quat(1.0, 0.0, 0.0, 0.0);
 static float objAngle = 0.0f;
 //	履歴データ 0が最も新しい 過去2フレームを使用
-std::vector<glm::mat4> prePose = { glm::mat4(1.0), glm::mat4(1.0), glm::mat4(1.0) };
-static float weightV = 0.9, weightA = 0.3;			//	mean = mix(p0, mix(p1, p2, weightA), weightV) 
-static double threshR = 1.0e-6, threshT = 0.5;		//	物体が止まっていると認識する閾値
+glm::mat4 prePose1, prePose2;	//	過去2フレーム
+static float weightV = 0.7, weightA = 0.2;			//	mean = mix(p0, mix(p1, p2, weightA), weightV) 
+static double threshR = 5.0e-5, threshT = 0.6;		//	物体が止まっていると認識する閾値
 //static float weightV = 0.0, weightA = 0.0;			//	mean = mix(p0, mix(p1, p2, weightA), weightV) 
 //static double threshR = 0, threshT = 0;		//	物体が止まっていると認識する閾値
 
@@ -378,6 +376,7 @@ int main(void)
 	initSubWindow();
 	cout << "\n画像描画の設定" << endl;
 	GLImage glImg(mainWindow);
+	//GLImage glImgProj(subWindow);
 
 	initARTK();
 
@@ -426,103 +425,46 @@ int main(void)
 		{
 			visible = false;
 		}
-
-
+		//-------------------------------
+		//	検出位置補正
+		//-------------------------------
+		//	現フレーム＆過去フレームから分解
+		vector<glm::vec3> transv(3);
+		vector<glm::quat> quatv(3);
+		transv[0] = glm::vec3(markerTransMat[3]);
+		transv[1] = glm::vec3(prePose1[3]);
+		transv[2] = glm::vec3(prePose2[3]);
+		quatv[0] = glm::toQuat(markerTransMat);
+		quatv[1] = glm::toQuat(prePose1);
+		quatv[2] = glm::toQuat(prePose2);
+		//	移動平均
+		glm::vec3 t_mean = glm::mix(transv[0], glm::mix(transv[1], transv[2], weightA), weightV);
+		glm::quat q_mean1;
+		if (glm::dot(quatv[1], quatv[2]) > 0.0) q_mean1 = glm::mix(quatv[1], quatv[2], weightA);
+		else q_mean1 = glm::mix(quatv[1], -quatv[2], weightA);
+		glm::quat q_mean;
+		if (glm::dot(quatv[0], q_mean1) > 0.0) q_mean = glm::mix(quatv[0], q_mean1, weightV);
+		else q_mean = glm::mix(quatv[0], -q_mean1, weightV);
+		//	閾値処理
+		//	並進
+		glm::vec3 t_current = transv[1];
+		if (glm::distance(t_current, t_mean) > threshT) t_current = t_mean;
+		//	回転
+		glm::quat q_current = quatv[1];
+		double dist_q = glm::length(q_current) + glm::length(q_mean) - glm::dot(q_current, q_mean);		//	||q_current - q_mean||
+		if (dist_q > threshR) q_current = q_mean;
+		//	行列の再構成
+		glm::mat4 r_current = glm::mat4_cast(q_current);
+		prePose2 = prePose1;								//	i-1 -> i-2 の更新
+		prePose1 = glm::translate(t_current) * r_current;	//	i -> i-1 の更新
+		markerTransMat = prePose1;
+		
 		//-------------------------------
 		//	タイマー計測終了
 		//-------------------------------
 		processTime = glfwGetTime() - currentTime;
 		cout << "FPS : " << 1.0 / processTime << "\r";
 
-		//------------------------------
-		//	Get AR Marker Transform
-		//------------------------------
-		////	カメラ画像取得
-		//colorImg = flycap.readImage();
-		//flip(colorImg, colorImg, 1);
-		////	ARToolKitに2値化画像を転送
-		//Mat threshImg, cameraBGRA, temp;
-		////cv::cvtColor(colorImg, threshImg, CV_BGR2GRAY);
-		////cv::adaptiveThreshold(threshImg, threshImg, 255, ADAPTIVE_THRESH_MEAN_C, THRESH_BINARY, 55, 10);
-		////cv::GaussianBlur(threshImg, threshImg, cv::Size(9, 9), 3.0);
-		////cv::cvtColor(threshImg, cameraBGRA, CV_GRAY2BGRA);
-		//cvtColor(colorImg, cameraBGRA, CV_BGR2BGRA);
-		//ARUint8 *imgData = (ARUint8*)cameraBGRA.data;
-		//cvtColor(colorImg, threshImg, CV_BGR2GRAY);
-		//threshold(threshImg, threshImg, 128, 255, CV_THRESH_BINARY);
-		//cv::imshow("camera", threshImg);
-		//
-		////	ARマーカーを認識
-		//ARMarkerInfo *markerInfo;
-		//int markerNum, thresh = 128;
-		//if (arDetectMarker(imgData, thresh, &markerInfo, &markerNum) < 0)
-		//{
-		//	cerr << "Error: at arDetectMarker() function." << endl;
-		//	safeTerminate();
-		//	exit(-1);
-		//}
-		//int k = -1;
-		//for (int j = 0; j < markerNum; j++)
-		//{
-		//	if (marker.patt_id == markerInfo[j].id)
-		//	{	//	markerと最も一致度の高いIDを抽出
-		//		if (k == -1) k = j;
-		//		else if (markerInfo[k].cf < markerInfo[j].cf) k = j;
-		//	}
-		//}
-		////	マーカー位置姿勢を取得
-		//glm::mat4 markerTransMat;		//	最初は単位行列
-		//if (k == -1) marker.visible = 0;
-		//else
-		//{	//	過去情報を利用してブレを抑える
-		//	if (marker.visible == 0)
-		//		arGetTransMat(&markerInfo[k], marker.patt_center, marker.patt_width, marker.patt_trans);
-		//	else
-		//		arGetTransMatCont(&markerInfo[k], marker.patt_trans, marker.patt_center, marker.patt_width, marker.patt_trans);
-		//	marker.visible = 1;
-		//	for (int i = 0; i < 3; i++){
-		//		for (int j = 0; j < 4; j++){
-		//			markerTransMat[j][i] = marker.patt_trans[i][j];
-		//		}
-		//	}
-		//	////	マーカー位置姿勢の加重平均をとる
-		//	prePose.insert(prePose.begin(), markerTransMat);	//	prePose[0]に挿入
-		//	prePose.pop_back();		//	-3フレーム目を削除
-		//	//	回転(expマップ上で加重平均)
-		//	//	クォータニオンの生成
-		//	glm::quat q[3] = {
-		//		glm::toQuat(prePose[0]),
-		//		glm::toQuat(prePose[1]),
-		//		glm::toQuat(prePose[2])
-		//	};
-		//	//	球面線形補間
-		//	glm::quat q_mean = glm::slerp(q[0], glm::slerp(q[1], q[2], 0.9f), 0.9f);		//	x(1-a)+ya
-		//	//	クォータニオンを回転行列に変換
-		//	glm::mat4 r_mean = glm::mat4_cast(q_mean);
-		//	//	閾値処理
-		//	static glm::quat q_mean_temp = q_mean;
-		//	//cout << abs(glm::dot(q_mean, q[1]) - glm::length(q_mean)) << endl;
-		//	if (abs(glm::dot(q_mean, q[1]) - glm::length(q_mean)) < threshR)
-		//		r_mean = glm::mat4_cast(q_mean_temp);
-		//	else
-		//		q_mean_temp = q[0];
-		//	//	平行移動ベクトルは単純に加重平均
-		//	glm::vec4 t_mean = glm::mix((prePose[0])[3], glm::mix((prePose[1])[3], (prePose[2])[3], weightA), weightV);
-		//	//	閾値処理
-		//	static glm::vec4 t_temp = t_mean;
-		//	//cout << glm::distance(t, prePose[1][3]) << endl;
-		//	if (glm::distance(t_mean, prePose[1][3]) < threshT)
-		//		t_mean = t_temp;
-		//	else
-		//		t_temp = t_mean;
-		//	//	並進・回転の合成
-		//	markerTransMat = glm::translate(glm::vec3(t_mean)) * r_mean;
-		//	//for (int i = 0; i < 4; i++){
-		//	//	for (int j = 0; j < 4; j++)
-		//	//		cout << markerTransMat[i][j] << ", ";
-		//	//	cout << ";\n";
-		//	//}
-		//}
 
 		//------------------------------
 		//	Main Winodw
@@ -549,7 +491,7 @@ int main(void)
 		glm::mat4 marker2model = glm::mat4(1.0)
 			* glm::translate(glm::vec3(0.0f, 0.0f, -70.0f))
 			//* glm::rotate(glm::mat4(1.0), (float)(180.0f*CV_PI/180.0f), glm::vec3(0.0, 1.0, 0.0))
-			//* glm::scale(glm::vec3(2.00, 2.00, 2.00))
+			* glm::scale(glm::vec3(1.04, 1.04, 1.04))
 			;
 		Model = glm::mat4(1.0)
 			* markerTransMat
@@ -566,6 +508,7 @@ int main(void)
 		//	Execute Rendering
 		static bool showModel = true;
 		if (showModel && visible)	mainRenderer.render();
+
 
 		//	描画結果を反映
 		glfwSwapBuffers(mainWindow);
@@ -606,7 +549,7 @@ int main(void)
 		
 		if (visible) subRenderer.render();
 
-		glClear(GL_DEPTH_BUFFER_BIT);
+		glDisable(GL_DEPTH_TEST);
 
 		//	Render Marker Light
 		Model = markerTransMat
@@ -618,7 +561,18 @@ int main(void)
 		markerLight.MVP = Projection * View * Model;
 		markerLight.objectColor = colorWhite;
 		markerLight.render();
+		glEnable(GL_DEPTH_TEST);
 
+
+		//Mat projImg(projSize, CV_8UC3);
+		//glReadBuffer(GL_BACK);
+		//glReadPixels(0, 0, projSize.width, projSize.height, GL_BGR, GL_UNSIGNED_BYTE, projImg.data);
+		//flip(projImg, projImg, 0);
+		//remap(projImg, projImg, mapP1, mapP2, INTER_LINEAR);
+
+		//imwrite("test.png", projImg);
+		//glImg.draw(projImg);
+		
 		// Swap buffers
 		glfwSwapBuffers(subWindow);
 
