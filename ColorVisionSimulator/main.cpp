@@ -60,7 +60,7 @@ const char vertexDir[] = "./shader/vertex.glsl";
 const char fragmentDir[] = "./shader/fragment.glsl";
 //	.obj Wavefront Object
 const char objDir[] = "../common/data/model/drop/drop_modified_x004.obj";
-const char textureDir[] = "../common/data/model/drop/textures/txt_001_diff.bmp";
+const char textureDir[] = "../common/data/model/drop/textures/txt_001_diff_cmyk_gamma.png";
 const char cubeMarkerObjDir[] = "../common/data/model/MultiMarker/MultiMarker.obj";
 //	Look-Up Table File Path
 const char *lutDir[5] = {
@@ -130,7 +130,7 @@ static float objAngle = 0.0f;
 //	履歴データ 0が最も新しい 過去2フレームを使用
 glm::mat4 prePose1, prePose2;	//	過去2フレーム
 static float weightV = 0.7, weightA = 0.2;			//	mean = mix(p0, mix(p1, p2, weightA), weightV) 
-static double threshR = 5.0e-5, threshT = 0.6;		//	物体が止まっていると認識する閾値
+static double threshR = 5.0e-4, threshT = 0.6;		//	物体が止まっていると認識する閾値
 //static float weightV = 0.0, weightA = 0.0;			//	mean = mix(p0, mix(p1, p2, weightA), weightV) 
 //static double threshR = 0, threshT = 0;		//	物体が止まっていると認識する閾値
 
@@ -284,6 +284,8 @@ void initCamera(void)
 	FileNode ProCam = fs["ProCam"];
 	ProCam["R"] >> RProCam;
 	ProCam["T"] >> TProCam;
+
+	//cameraMatrixProj.at<double>(0, 2) = 1024.0 - cameraMatrixProj.at<double>(0, 2)+20.0;
 
 	//	カメラパラメータから行列作成
 	glmProjMat = cvtCVCameraParam2GLProjection(cameraMatrix, cameraSize, 0.1, 5000.0);
@@ -459,11 +461,6 @@ int main(void)
 		prePose1 = glm::translate(t_current) * r_current;	//	i -> i-1 の更新
 		markerTransMat = prePose1;
 		
-		//-------------------------------
-		//	タイマー計測終了
-		//-------------------------------
-		processTime = glfwGetTime() - currentTime;
-		cout << "FPS : " << 1.0 / processTime << "\r";
 
 
 		//------------------------------
@@ -521,7 +518,8 @@ int main(void)
 
 		Projection = glmProjMatProj;
 		//	カメラを原点としたプロジェクタ位置姿勢
-		View = glm::lookAt(
+		View = glm::mat4(1.0)
+			* glm::lookAt(
 			glm::vec3(0, 0, 0), // カメラの原点
 			glm::vec3(0, 0, 1), // 見ている点
 			glm::vec3(0, 1, 0)  // カメラの上方向
@@ -568,6 +566,7 @@ int main(void)
 		//glReadBuffer(GL_BACK);
 		//glReadPixels(0, 0, projSize.width, projSize.height, GL_BGR, GL_UNSIGNED_BYTE, projImg.data);
 		//flip(projImg, projImg, 0);
+		//imwrite("test1.png", projImg);
 		//remap(projImg, projImg, mapP1, mapP2, INTER_LINEAR);
 
 		//imwrite("test.png", projImg);
@@ -782,6 +781,11 @@ int main(void)
 			break;
 		}
 
+		//-------------------------------
+		//	タイマー計測終了
+		//-------------------------------
+		processTime = glfwGetTime() - currentTime;
+		cout << "FPS : " << 1.0 / processTime << "\r";
 
 		glfwPollEvents();
 	}
