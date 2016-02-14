@@ -285,7 +285,7 @@ void initCamera(void)
 	ProCam["R"] >> RProCam;
 	ProCam["T"] >> TProCam;
 
-	//cameraMatrixProj.at<double>(0, 2) = 1024.0 - cameraMatrixProj.at<double>(0, 2)+20.0;
+	//cameraMatrixProj.at<double>(0, 2) = projSize.width - cameraMatrixProj.at<double>(0,2);		//	1-2x/w = -1+2c_x/w
 
 	//	カメラパラメータから行列作成
 	glmProjMat = cvtCVCameraParam2GLProjection(cameraMatrix, cameraSize, 0.1, 5000.0);
@@ -479,7 +479,7 @@ int main(void)
 		View = glm::lookAt(
 			glm::vec3(0, 0, 0), // カメラの原点
 			glm::vec3(0, 0, 1), // 見ている点
-			glm::vec3(0, 1, 0)  // カメラの上方向
+			glm::vec3(0, -1, 0)  // カメラの上方向
 			)
 			;
 
@@ -522,7 +522,7 @@ int main(void)
 			* glm::lookAt(
 			glm::vec3(0, 0, 0), // カメラの原点
 			glm::vec3(0, 0, 1), // 見ている点
-			glm::vec3(0, 1, 0)  // カメラの上方向
+			glm::vec3(0, -1, 0)  // カメラの上方向
 			)
 			* glm::rotate(projR[0], glm::vec3(1, 0, 0))
 			* glm::rotate(projR[1], glm::vec3(0, 1, 0))

@@ -198,8 +198,8 @@ glm::mat4 cvtCVCameraParam2GLProjection(cv::Mat camMat, cv::Size camSz, double z
 	//	[0,					0,					-1,										0]
 
 	glm::mat4 projection(
-		-2.0 * fx / w, 0, 0, 0,
-		0, -2.0 * fy / h, 0, 0,
+		2.0 * fx / w, 0, 0, 0,
+		0, 2.0 * fy / h, 0, 0,
 		1.0 - 2.0 * cx / w, -1.0 + 2.0 * cy / h, -(zfar + znear) / (zfar - znear), -1.0,
 		0, 0, -2.0 * zfar * znear / (zfar - znear), 0);
 
