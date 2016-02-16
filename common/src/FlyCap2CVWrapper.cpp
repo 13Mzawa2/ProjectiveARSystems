@@ -48,12 +48,12 @@ FlyCap2CVWrapper::FlyCap2CVWrapper()
 		return;
 	}
 	//	Disable Auto changes
-	autoFrameRate(false, 90.0f);
+	autoFrameRate(false, 120.0f);
 	autoWhiteBalance(false, 640, 640);
 	autoExposure(false, -2.0f);
 	autoSaturation(false, 100.0f);
 	autoShutter(false, 6.8f);
-	autoGain(false, 12.0f);
+	autoGain(false, 10.0f);
 
 	flycamError = flycam.StartCapture();
 	if (flycamError == PGRERROR_ISOCH_BANDWIDTH_EXCEEDED)

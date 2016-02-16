@@ -73,5 +73,11 @@
     <None Include="shader\vertex.glsl">
       <Filter>Shader</Filter>
     </None>
+    <None Include="shader\fragment_main.glsl">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="shader\vertex_main.glsl">
+      <Filter>Shader</Filter>
+    </None>
   </ItemGroup>
 </Project>

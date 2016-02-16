@@ -58,6 +58,8 @@ using namespace std;
 //	Shader file
 const char vertexDir[] = "./shader/vertex.glsl";
 const char fragmentDir[] = "./shader/fragment.glsl";
+const char vertexMainDir[] = "./shader/vertex_main.glsl";
+const char fragmentMainDir[] = "./shader/fragment_main.glsl";
 //	.obj Wavefront Object
 const char objDir[] = "../common/data/model/drop/drop_modified_x004.obj";
 const char textureDir[] = "../common/data/model/drop/textures/txt_001_diff_cmyk_gamma.png";
@@ -223,7 +225,7 @@ void initMainWindow(void)
 	//-----------------------------
 	mainRenderer.setVisionLUT(visionLUT);					//	LUTを読み込む
 	loadOBJ(objDir, mainRenderer.obj);						//	.objファイルを読み込み
-	mainRenderer.shader.initGLSL(vertexDir, fragmentDir);	//	プログラマブルシェーダをロード
+	mainRenderer.shader.initGLSL(vertexMainDir, fragmentMainDir);	//	プログラマブルシェーダをロード
 	mainRenderer.texImg = imread(textureDir);				//	テクスチャ画像を読み込む
 	flip(mainRenderer.texImg, mainRenderer.texImg, 1);
 	mainRenderer.init();
@@ -486,6 +488,10 @@ int main(void)
 		//	モデル行列
 		//	マーカーからモデルまで
 		glm::mat4 marker2model = glm::mat4(1.0)
+			* glm::rotate(projR[0], glm::vec3(1, 0, 0))
+			* glm::rotate(projR[1], glm::vec3(0, 1, 0))
+			* glm::rotate(projR[2], glm::vec3(0, 0, 1))
+			* glm::translate(projT)		//	キャリブレーションの手動修正
 			* glm::translate(glm::vec3(0.0f, 0.0f, -70.0f))
 			//* glm::rotate(glm::mat4(1.0), (float)(180.0f*CV_PI/180.0f), glm::vec3(0.0, 1.0, 0.0))
 			* glm::scale(glm::vec3(1.04, 1.04, 1.04))
@@ -499,7 +505,7 @@ int main(void)
 		mainRenderer.shader.enable();
 		mainRenderer.MV = View * Model;
 		mainRenderer.MVP = Projection * mainRenderer.MV;
-		mainRenderer.lightDirection = glm::vec3(mainRenderer.MV[3]);
+		mainRenderer.lightDirection = glm::vec3(0.0,0.0,1.0);
 		mainRenderer.lightColor = colorWhite;
 		
 		//	Execute Rendering
@@ -524,10 +530,6 @@ int main(void)
 			glm::vec3(0, 0, 1), // 見ている点
 			glm::vec3(0, -1, 0)  // カメラの上方向
 			)
-			* glm::rotate(projR[0], glm::vec3(1, 0, 0))
-			* glm::rotate(projR[1], glm::vec3(0, 1, 0))
-			* glm::rotate(projR[2], glm::vec3(0, 0, 1))
-			* glm::translate(projT)		//	キャリブレーションの手動修正
 			* glmTransProCam
 			;
 		
